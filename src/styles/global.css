@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f1419;
+  --fg: #e8eef4;
+  --muted: #8b9aab;
+  --accent: #3d9cf0;
+  --radius: 10px;
+  --surface: #ffffff;
+  --surface-page: #f6f8fa;
+  --fg-page: #1a1f26;
+  --muted-page: #5c6b7a;
+  --border: #d8dee6;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100%;
+}
