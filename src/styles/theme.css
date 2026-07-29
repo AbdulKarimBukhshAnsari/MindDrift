@@ -28,10 +28,10 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Extension popup — must fit Chrome max (~800×600) with no scroll */
-  --spacing-popup: 22.5rem; /* 360px */
-  --spacing-popup-h: 37.5rem; /* 600px — Chrome popup height ceiling */
-  --spacing-pad: 1.25rem;
+  /* Extension popup — roomier shell within Chrome max (~800×600) */
+  --spacing-popup: 36rem; /* 576px */
+  --spacing-popup-h: 37.5rem; /* 600px — Chrome height ceiling */
+  --spacing-pad: 1.5rem;
 }
 
 :root {

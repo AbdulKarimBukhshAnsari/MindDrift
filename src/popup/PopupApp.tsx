@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { WelcomeScreen } from './WelcomeScreen';
+import { PersonaScreen } from './PersonaScreen';
 import { STORAGE_KEYS } from '../shared/constants';
 import { storageGet, storageSet } from '../shared/storage';
 
-type PopupView = 'loading' | 'welcome' | 'home';
+type PopupView = 'loading' | 'welcome' | 'persona' | 'home';
 
 /**
- * Main extension popup — welcome on first run, then home shell.
+ * Main extension popup — welcome → persona on first run, then home.
  */
 export function PopupApp() {
   const [view, setView] = useState<PopupView>('loading');
@@ -26,7 +27,7 @@ export function PopupApp() {
     };
   }, []);
 
-  async function handleStartFlow() {
+  async function finishOnboarding() {
     await storageSet(STORAGE_KEYS.ONBOARDING_COMPLETE, true);
     setView('home');
   }
@@ -36,7 +37,11 @@ export function PopupApp() {
   }
 
   if (view === 'welcome') {
-    return <WelcomeScreen onStart={() => void handleStartFlow()} />;
+    return <WelcomeScreen onStart={() => setView('persona')} />;
+  }
+
+  if (view === 'persona') {
+    return <PersonaScreen onContinue={() => void finishOnboarding()} />;
   }
 
   return (
