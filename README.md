@@ -94,7 +94,9 @@ npm install
 npm run dev
 ```
 
-CRXJS serves the extension with Vite HMR for popup/options. Load / reload the unpacked build as prompted by the tool (typically the `dist` output once generated).
+This **watches your files and rebuilds `dist/` on every save**. Load the unpacked extension from `dist/`, then after each change: close and reopen the popup.
+
+Optional: `npm run dev:hmr` uses Vite HMR (live update while the popup stays open). Prefer `npm run dev` if you want `dist/` always up to date without a manual build.
 
 ### Production build
 
@@ -113,8 +115,9 @@ Then in Chrome:
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Vite + CRXJS development |
-| `npm run build` | Typecheck + production bundle → `dist/` |
+| `npm run dev` | Watch mode — auto-rebuilds `dist/` on save |
+| `npm run dev:hmr` | Vite + CRXJS HMR (popup must stay open) |
+| `npm run build` | Typecheck + one-shot production bundle → `dist/` |
 | `npm run typecheck` | TypeScript only |
 | `npm run zip` | Build and zip `dist/` for sharing |
 

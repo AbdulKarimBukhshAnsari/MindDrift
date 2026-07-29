@@ -1,0 +1,39 @@
+/**
+ * MindDrift theme — tokens from Stitch "Welcome to MindDrift (Pro Theme)".
+ * Single app look (not a selectable "Professional" theme product).
+ * Consumed by Tailwind via @theme (bg-md-*, text-md-*, etc.).
+ */
+@theme {
+  --color-md-bg: #051424;
+  --color-md-surface: #2d3250;
+  --color-md-surface-raised: #363b5c;
+  --color-md-border: #424769;
+  --color-md-border-subtle: color-mix(in srgb, #676f9d 45%, transparent);
+
+  --color-md-fg: #f1f5f9;
+  --color-md-fg-muted: #a8b0c8;
+  --color-md-fg-on-accent: #051424;
+
+  --color-md-accent: #f9b17a;
+  --color-md-accent-hover: #ffc093;
+  --color-md-accent-soft: color-mix(in srgb, #f9b17a 14%, transparent);
+
+  --color-md-page: #f6f8fa;
+  --color-md-page-fg: #1a1f26;
+  --color-md-page-muted: #5c6b7a;
+
+  --font-sans: 'Raleway', 'Segoe UI', system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Extension popup — must fit Chrome max (~800×600) with no scroll */
+  --spacing-popup: 22.5rem; /* 360px */
+  --spacing-popup-h: 37.5rem; /* 600px — Chrome popup height ceiling */
+  --spacing-pad: 1.25rem;
+}
+
+:root {
+  color-scheme: dark;
+}

@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   DAILY_STATS: 'dailyStats',
   LAST_ALERT_AT: 'lastAlertAt',
   FOCUS_SESSION: 'focusSession',
+  /** First-run welcome completed — local only, no account. */
+  ONBOARDING_COMPLETE: 'onboardingComplete',
 } as const;
 
 /** Default MVP thresholds — tune with research / QA evidence. */

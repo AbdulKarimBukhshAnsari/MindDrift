@@ -1,27 +1,32 @@
-:root {
-  color-scheme: light dark;
-  --bg: #0f1419;
-  --fg: #e8eef4;
-  --muted: #8b9aab;
-  --accent: #3d9cf0;
-  --radius: 10px;
-  --surface: #ffffff;
-  --surface-page: #f6f8fa;
-  --fg-page: #1a1f26;
-  --muted-page: #5c6b7a;
-  --border: #d8dee6;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  line-height: 1.4;
-}
+@import 'tailwindcss';
+@import './theme.css';
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-body {
-  margin: 0;
-}
+  body {
+    @apply m-0 bg-md-bg font-sans text-md-fg antialiased leading-snug;
+  }
 
-#root {
-  min-height: 100%;
+  button {
+    font: inherit;
+  }
+
+  /* Popup shell: lock size to Chrome max so the UI never scrolls */
+  html.md-popup,
+  html.md-popup body,
+  html.md-popup #root {
+    width: var(--spacing-popup);
+    height: var(--spacing-popup-h);
+    max-width: 800px;
+    max-height: 600px;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  html.md-popup body {
+    background: var(--color-md-bg);
+  }
 }

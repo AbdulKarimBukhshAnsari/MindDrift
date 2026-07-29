@@ -5,7 +5,8 @@
   "type": "module",
   "description": "MindDrift — local-first Chrome extension that detects focus loss from browsing behavior and gently intervenes.",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite build --watch",
+    "dev:hmr": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -46,10 +47,12 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.7.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/chrome": "^0.2.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "tailwindcss": "^4.3.3",
     "typescript": "~5.8.3",
     "vite": "^8.1.5"
   }
