@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import type { PersonaId } from '@/types/persona';
 
-export type PersonaId = 'deep-reader' | 'standard-worker' | 'rapid-researcher';
+export type { PersonaId };
 
 type PersonaScreenProps = {
   onContinue: () => void;
@@ -193,13 +194,6 @@ export function PersonaScreen({ onContinue }: PersonaScreenProps) {
           onClick={onContinue}
         >
           Initialize Flow State
-        </button>
-        <button
-          type="button"
-          className="inline-flex w-full cursor-pointer items-center justify-center rounded-md border border-md-accent bg-transparent px-4 py-2 text-sm font-semibold text-md-accent transition-colors hover:bg-md-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-md-accent"
-          onClick={onContinue}
-        >
-          Custom Configuration
         </button>
       </div>
     </main>

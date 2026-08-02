@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { WelcomeScreen } from './WelcomeScreen';
-import { PersonaScreen } from './PersonaScreen';
-import { STORAGE_KEYS } from '../shared/constants';
-import { storageGet, storageSet } from '../shared/storage';
+import { WelcomeScreen } from '@/components/screens/WelcomeScreen';
+import { PersonaScreen } from '@/components/screens/PersonaScreen';
+import { STORAGE_KEYS } from '@/constants';
+import { storageGet, storageSet } from '@/chrome/storage';
 
 type PopupView = 'loading' | 'welcome' | 'persona' | 'home';
 

@@ -1,0 +1,33 @@
+---
+description: Chrome MV3 patterns for service worker, content, and API wrappers
+globs: src/chrome/**/*.{ts,tsx},src/background/**/*.{ts,tsx},src/content/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Chrome extension
+
+## Boundaries
+
+- Service worker orchestrates listeners, alarms, notifications, and messaging
+- Pure detection / insight math stays in `@/lib` (import thresholds from `@/constants`)
+- Prefer `@/chrome/*` helpers over scattering raw `chrome.*` calls
+
+## Patterns
+
+```ts
+// ❌ BAD — detection + Chrome API mixed in the worker
+chrome.tabs.onActivated.addListener((info) => {
+  if (recentSwitches.length >= 5) chrome.notifications.create(/* ... */);
+});
+
+// ✅ GOOD — worker orchestrates; lib decides
+import { shouldTriggerRapidSwitchAlert } from '@/lib/detection';
+import { storageGet } from '@/chrome/storage';
+```
+
+## Constraints
+
+- Manifest V3: no persistent background page; handle ephemeral worker lifetime
+- Least privilege: do not register the content script until in-page UI is required
+- Persist via `chrome.storage.local` only (MVP)
+- Use `MESSAGE_TYPES` from `@/constants` for runtime messages

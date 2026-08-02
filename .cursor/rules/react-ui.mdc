@@ -1,0 +1,27 @@
+---
+description: React UI conventions for popup, options, and components
+globs: src/components/**/*.{ts,tsx},src/popup/**/*.{ts,tsx},src/options/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# React UI
+
+## Shells vs screens
+
+- `popup/` and `options/` stay thin: HTML, `main.tsx`, app router/shell
+- Full screens live in `src/components/screens/`
+- Shared primitives go in `src/components/ui/` when extracted
+
+```ts
+// ❌ BAD — screen file inside popup/
+// src/popup/WelcomeScreen.tsx
+
+// ✅ GOOD
+import { WelcomeScreen } from '@/components/screens/WelcomeScreen';
+```
+
+## Styling
+
+- Use existing Tailwind theme tokens (`md-bg`, `md-accent`, `p-pad`, …) from `src/styles`
+- Prefer functional components; extract hooks to `src/hooks` when reusable across screens
+- Popup UIs should fit the fixed popup height without unnecessary scroll when designed that way

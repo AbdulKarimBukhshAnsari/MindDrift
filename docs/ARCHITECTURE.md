@@ -13,17 +13,24 @@ No backend, auth, or cloud storage in MVP.
 | Bundler | Vite |
 | Extension tooling | `@crxjs/vite-plugin` |
 | Manifest | `manifest.config.ts` (typed) |
+| Path alias | `@/*` → `src/*` |
 
-## Component map
+## Layer map
 
 | Layer | Path | Role |
 | --- | --- | --- |
 | Manifest | `manifest.config.ts` | MV3 config, permissions, entry points |
 | Service worker | `src/background/service-worker.ts` | Tab listeners, orchestration, alarms, notifications |
-| Popup | `src/popup/` | React main UI |
-| Options | `src/options/` | React settings page |
+| Popup shell | `src/popup/` | Mount + route only |
+| Options shell | `src/options/` | Settings page mount |
+| Screens / UI | `src/components/` | React screens and shared primitives |
+| Chrome APIs | `src/chrome/` | storage, messaging, tabs wrappers |
+| Constants | `src/constants/` | Keys, thresholds, defaults, message types |
+| Pure logic | `src/lib/` | Detection, domain helpers |
+| Types | `src/types/` | Shared TypeScript types |
+| Hooks | `src/hooks/` | Reusable React hooks |
 | Content (optional) | `src/content/content.ts` | In-page UI only if notifications are not enough |
-| Shared | `src/shared/` | Constants, storage helpers, detection stubs |
+| Styles | `src/styles/` | global + theme tokens |
 
 ## Chrome APIs (MVP)
 
@@ -40,13 +47,13 @@ No backend, auth, or cloud storage in MVP.
 Tab / window events
         │
         ▼
- service-worker  ──►  shared/detection  ──►  alert / session / insight
+ service-worker  ──►  lib/detection  ──►  alert / session / insight
         │
         ▼
- chrome.storage.local
+ chrome/storage (chrome.storage.local)
         │
-        ├── popup (React — read state + actions)
-        └── options (React — classifications + prefs)
+        ├── popup shell → components/screens
+        └── options shell → components (settings UI)
 ```
 
 ## Dev vs load
@@ -71,4 +78,6 @@ Tab / window events
 }
 ```
 
-Tune thresholds in `src/shared/constants.ts` with research evidence.
+Tune thresholds in `src/constants/` with research evidence.
+
+Agent conventions: see [`AGENTS.md`](../AGENTS.md).

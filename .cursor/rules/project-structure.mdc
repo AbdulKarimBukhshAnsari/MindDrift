@@ -1,0 +1,36 @@
+---
+description: MindDrift folder ownership, @/ imports, and layer boundaries
+alwaysApply: true
+---
+
+# Project structure
+
+MindDrift is a local-first Chrome MV3 extension. Follow the layered layout in `AGENTS.md`.
+
+## Ownership
+
+| Layer | Path | Put here |
+| --- | --- | --- |
+| Entry shells | `src/popup`, `src/options`, `src/background`, `src/content` | Mounting / orchestration only |
+| UI | `src/components/screens`, `src/components/ui` | Screens and shared React UI |
+| Chrome APIs | `src/chrome` | `storage`, `messaging`, `tabs` wrappers |
+| Constants | `src/constants` | Keys, thresholds, defaults, message types |
+| Pure logic | `src/lib` | Detection, domain helpers — no Chrome calls |
+| Types | `src/types` | Shared TypeScript types |
+| Hooks | `src/hooks` | Reusable React hooks |
+
+## Imports
+
+```ts
+// ❌ BAD
+import { storageGet } from '../shared/storage';
+
+// ✅ GOOD
+import { storageGet } from '@/chrome/storage';
+```
+
+## Do not
+
+- Dump feature logic into `popup/` or `background/service-worker.ts`
+- Call raw `chrome.*` from React screens when a `@/chrome` helper exists or should
+- Add backend, auth, cloud storage, or dashboard UI in MVP

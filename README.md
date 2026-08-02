@@ -50,23 +50,28 @@ Full checklist: [`docs/MVP.md`](docs/MVP.md) · Architecture: [`docs/ARCHITECTUR
 
 ```text
 MindDrift/
+├── AGENTS.md                  # Conventions for AI / contributors
+├── .cursor/rules/             # Cursor project rules
 ├── manifest.config.ts         # Typed MV3 manifest (CRXJS)
-├── vite.config.ts
-├── tsconfig.json
-├── package.json
-├── public/icons/              # Extension icons
+├── vite.config.ts             # @ → src alias
 ├── docs/
 │   ├── MVP.md
 │   └── ARCHITECTURE.md
 └── src/
-    ├── background/
-    │   └── service-worker.ts  # MV3 service worker
-    ├── popup/                 # React popup UI
-    ├── options/               # React settings UI
-    ├── content/               # Optional content script (not registered)
-    ├── shared/                # Constants, storage, detection stubs
-    └── styles/global.css
+    ├── background/            # Service worker entry
+    ├── popup/                 # Thin popup shell
+    ├── options/               # Thin options shell
+    ├── content/               # Optional content script
+    ├── components/            # screens/ + ui/
+    ├── chrome/                # storage, messaging, tabs
+    ├── constants/             # keys, thresholds, messages
+    ├── lib/                   # detection + pure helpers
+    ├── types/                 # shared TypeScript types
+    ├── hooks/                 # reusable React hooks
+    └── styles/
 ```
+
+Path alias: import from `@/…` (maps to `src/`). See [`AGENTS.md`](AGENTS.md).
 
 Scaffold only: React shells and TypeScript stubs. Feature logic is left for you to implement.
 

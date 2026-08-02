@@ -4,7 +4,7 @@
  * MindDrift — Background Service Worker (Manifest V3)
  *
  * Orchestrates tab listeners, detection, alarms, and notifications.
- * Keep detection math in `src/shared/`.
+ * Keep detection math in `@/lib`. Chrome API wrappers live in `@/chrome`.
  */
 
 chrome.runtime.onInstalled.addListener((details) => {
