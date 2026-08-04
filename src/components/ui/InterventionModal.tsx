@@ -35,7 +35,7 @@ export function InterventionModal({
           role="dialog"
           aria-modal="true"
           aria-label="Focus break"
-          className="pointer-events-auto w-[min(30rem,calc(100vw-2.5rem))] animate-[md-rise_240ms_ease-out] rounded-lg border border-md-border-subtle bg-md-bg p-6 text-md-fg shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+          className="pointer-events-auto w-[min(42rem,calc(100vw-2.5rem))] animate-[md-rise_240ms_ease-out] rounded-lg border border-md-border-subtle bg-md-bg p-6 text-md-fg shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
         >
           <div className="mb-5 flex items-start gap-3.5">
             <span
