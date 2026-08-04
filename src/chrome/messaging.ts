@@ -2,7 +2,10 @@ import { MESSAGE_TYPES, type MessageType } from '@/constants';
 import type { PersonaInterventionCopy } from '@/types/personaRules';
 
 export type InterventionPayload = PersonaInterventionCopy & {
+  /** 0 or negative = sticky (no auto-dismiss). */
   autoDismissMs: number;
+  /** Hide the snooze row (opt-in Yes/No). Default true. */
+  showSnooze?: boolean;
 };
 
 export type ExtensionMessage = {

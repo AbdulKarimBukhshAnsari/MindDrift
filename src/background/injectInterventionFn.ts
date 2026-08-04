@@ -8,6 +8,7 @@ export function selfContainedShowIntervention(payload: {
   goBackLabel: string;
   snoozeLabel: string;
   autoDismissMs: number;
+  showSnooze?: boolean;
   continueType: string;
   goBackType: string;
   snoozeType: string;
@@ -28,7 +29,7 @@ export function selfContainedShowIntervention(payload: {
     #md-root{position:fixed!important;inset:0!important;z-index:2147483646!important;font-family:system-ui,sans-serif!important}
     .md-backdrop{position:absolute;inset:0;background:rgba(5,20,36,.62);backdrop-filter:blur(2px)}
     .md-wrap{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:20px;box-sizing:border-box;pointer-events:none}
-    .md-card{pointer-events:auto;width:min(30rem,calc(100vw - 2.5rem));box-sizing:border-box;border-radius:14px;border:1px solid rgba(103,111,157,.45);background:#051424;color:#f1f5f9;padding:24px;box-shadow:0 16px 48px rgba(0,0,0,.55)}
+    .md-card{pointer-events:auto;width:min(42rem,calc(100vw - 2.5rem));box-sizing:border-box;border-radius:14px;border:1px solid rgba(103,111,157,.45);background:#051424;color:#f1f5f9;padding:24px;box-shadow:0 16px 48px rgba(0,0,0,.55)}
     .md-row{display:flex;gap:14px;margin-bottom:18px}
     .md-icon{flex-shrink:0;width:42px;height:42px;display:grid;place-items:center;border-radius:10px;background:#f9b17a;color:#051424;font-weight:700}
     .md-brand{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#f9b17a}
@@ -72,6 +73,9 @@ export function selfContainedShowIntervention(payload: {
   if (cBtn) cBtn.textContent = payload.continueLabel;
   if (bBtn) bBtn.textContent = payload.goBackLabel;
   if (sBtn) sBtn.textContent = payload.snoozeLabel;
+  if (payload.showSnooze === false && sBtn) {
+    sBtn.style.display = 'none';
+  }
 
   shadow.append(style, root);
   document.documentElement.style.overflow = 'hidden';
@@ -98,8 +102,10 @@ export function selfContainedShowIntervention(payload: {
     // ignore
   }
 
+  let timer: number | undefined;
+
   const done = (type: string) => {
-    window.clearTimeout(timer);
+    if (timer !== undefined) window.clearTimeout(timer);
     document.documentElement.style.overflow = '';
     host.remove();
     void chrome.runtime.sendMessage({ type });
@@ -108,5 +114,7 @@ export function selfContainedShowIntervention(payload: {
   cBtn?.addEventListener('click', () => done(payload.continueType));
   bBtn?.addEventListener('click', () => done(payload.goBackType));
   sBtn?.addEventListener('click', () => done(payload.snoozeType));
-  const timer = window.setTimeout(() => done(payload.dismissType), payload.autoDismissMs);
+  if (payload.autoDismissMs > 0) {
+    timer = window.setTimeout(() => done(payload.dismissType), payload.autoDismissMs);
+  }
 }

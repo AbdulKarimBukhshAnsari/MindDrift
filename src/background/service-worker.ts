@@ -3,17 +3,19 @@
 /**
  * MindDrift — Background Service Worker (Manifest V3)
  *
- * Orchestrates tab listeners and focus-break alerts.
+ * Orchestrates tab listeners, focus-break alerts, and distraction control (Feature 3).
  * Detection math lives in `@/lib`; Chrome I/O in `@/chrome`.
  */
 
 import {
   ALERT_PAUSE_MS,
-  DEFAULT_DISTRACTING_DOMAINS,
+  DISTRACTION_INTENTIONAL_MS,
+  DISTRACTION_OPT_IN_MS,
   getPersonaRules,
   MESSAGE_TYPES,
   STORAGE_KEYS,
   type DomainClassification,
+  type DistractionPromptStatus,
 } from '@/constants';
 import { RAPID_RESEARCHER_RULES } from '@/constants/personas/rapidResearcher';
 import { sendTabMessage } from '@/chrome/messaging';
@@ -23,8 +25,16 @@ import {
   storageGet,
   storageSet,
 } from '@/chrome/storage';
-import { activateTab, getTab, isInjectableUrl } from '@/chrome/tabs';
+import { activateTab, closeTab, getTab, isInjectableUrl } from '@/chrome/tabs';
 import { selfContainedShowIntervention } from '@/background/injectInterventionFn';
+import {
+  acceptDistractionDomain,
+  declineDistractionDomain,
+  shouldRunIntentionalCheck,
+  shouldOfferOptIn,
+  shouldSuppressFocusBreakForDomain,
+} from '@/lib/distractionControl';
+import { normalizeDomain } from '@/lib/domain';
 import { createFocusBreakEngine } from '@/lib/focusBreakEngine';
 import { createEmptyTrackingState } from '@/lib/trackingState';
 import type { PersonaId } from '@/types/persona';
@@ -33,6 +43,30 @@ import type { TrackingState } from '@/types/tracking';
 const engine = createFocusBreakEngine();
 let hydrated = false;
 const FOCUS_BREAK_NOTIFICATION_ID = 'minddrift-focus-break';
+const DISTRACTION_ALARM = 'minddrift-distraction-dwell';
+
+type DistractionDwell = {
+  tabId: number;
+  domain: string;
+  startedAt: number;
+  mode: 'opt-in' | 'intentional';
+};
+
+let distractionDwell: DistractionDwell | null = null;
+
+async function setDistractionDwell(dwell: DistractionDwell | null) {
+  distractionDwell = dwell;
+  await sessionSet(STORAGE_KEYS.DISTRACTION_DWELL, dwell);
+}
+
+async function getDistractionDwell(): Promise<DistractionDwell | null> {
+  if (distractionDwell) return distractionDwell;
+  distractionDwell = await sessionGet<DistractionDwell | null>(
+    STORAGE_KEYS.DISTRACTION_DWELL,
+    null,
+  );
+  return distractionDwell;
+}
 
 async function notifyFocusBreak(message: string) {
   try {
@@ -53,7 +87,7 @@ async function notifyFocusBreak(message: string) {
   }
 }
 
-function speakFocusBreak(message: string) {
+function speakAlert(message: string) {
   try {
     chrome.tts?.speak(message, {
       enqueue: false,
@@ -86,12 +120,9 @@ async function seedDefaults() {
     STORAGE_KEYS.DOMAIN_CLASSIFICATIONS,
     null,
   );
+  // Feature 3: do not seed suggested domains as distracting — wait for opt-in.
   if (!existing) {
-    const seed: Record<string, DomainClassification> = {};
-    for (const domain of DEFAULT_DISTRACTING_DOMAINS) {
-      seed[domain] = 'distracting';
-    }
-    await storageSet(STORAGE_KEYS.DOMAIN_CLASSIFICATIONS, seed);
+    await storageSet(STORAGE_KEYS.DOMAIN_CLASSIFICATIONS, {});
   }
 
   const cluster = await storageGet<string[] | null>(STORAGE_KEYS.WORKSPACE_CLUSTER, null);
@@ -134,6 +165,131 @@ async function resolvePersonaRules() {
   return getPersonaRules(personaId);
 }
 
+async function clearDistractionAlarm() {
+  await chrome.alarms.clear(DISTRACTION_ALARM);
+}
+
+async function scheduleDistractionAlarm(whenMs: number) {
+  await chrome.alarms.create(DISTRACTION_ALARM, { when: whenMs });
+}
+
+async function syncDistractionDwell(tabId: number, url: string) {
+  const domain = normalizeDomain(url);
+  if (!isInjectableUrl(url) || !domain) {
+    await setDistractionDwell(null);
+    await clearDistractionAlarm();
+    return;
+  }
+
+  const [promptStatus, snoozedUntil] = await Promise.all([
+    storageGet<Record<string, DistractionPromptStatus>>(
+      STORAGE_KEYS.DISTRACTION_PROMPT_STATUS,
+      {},
+    ),
+    storageGet<number>(STORAGE_KEYS.DISTRACTION_SNOOZED_UNTIL, 0),
+  ]);
+  const now = Date.now();
+  const existing = await getDistractionDwell();
+
+  // Same domain stays active — keep the dwell clock; retarget the tab for modals.
+  if (existing && existing.domain === domain) {
+    await setDistractionDwell({ ...existing, tabId });
+    return;
+  }
+
+  if (shouldOfferOptIn(domain, promptStatus)) {
+    await setDistractionDwell({ tabId, domain, startedAt: now, mode: 'opt-in' });
+    await scheduleDistractionAlarm(now + DISTRACTION_OPT_IN_MS);
+    console.log('[MindDrift] distraction opt-in timer started', {
+      domain,
+      inMs: DISTRACTION_OPT_IN_MS,
+    });
+    return;
+  }
+
+  if (shouldRunIntentionalCheck(domain, promptStatus, snoozedUntil, now)) {
+    await setDistractionDwell({
+      tabId,
+      domain,
+      startedAt: now,
+      mode: 'intentional',
+    });
+    await scheduleDistractionAlarm(now + DISTRACTION_INTENTIONAL_MS);
+    console.log('[MindDrift] distraction intentional timer started', {
+      domain,
+      inMs: DISTRACTION_INTENTIONAL_MS,
+    });
+    return;
+  }
+
+  await setDistractionDwell(null);
+  await clearDistractionAlarm();
+}
+
+async function restartIntentionalDwell() {
+  const existing = await getDistractionDwell();
+  if (!existing || existing.mode !== 'intentional') {
+    const tab = existing ? await getTab(existing.tabId) : undefined;
+    if (tab?.id != null && tab.url) {
+      await setDistractionDwell(null);
+      await syncDistractionDwell(tab.id, tab.url);
+    }
+    return;
+  }
+
+  const now = Date.now();
+  await setDistractionDwell({
+    ...existing,
+    startedAt: now,
+    mode: 'intentional',
+  });
+  await scheduleDistractionAlarm(now + DISTRACTION_INTENTIONAL_MS);
+}
+
+type ModalPayload = {
+  message: string;
+  continueLabel: string;
+  goBackLabel: string;
+  snoozeLabel: string;
+  autoDismissMs: number;
+  showSnooze?: boolean;
+};
+
+async function showPageModal(
+  tabId: number,
+  showType: string,
+  payload: ModalPayload,
+  injectTypes: {
+    continueType: string;
+    goBackType: string;
+    snoozeType: string;
+    dismissType: string;
+  },
+) {
+  const response = await sendTabMessage(tabId, {
+    type: showType as (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES],
+    payload,
+  });
+  if (response) return true;
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: selfContainedShowIntervention,
+      args: [
+        {
+          ...payload,
+          ...injectTypes,
+        },
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.warn('[MindDrift] scripting inject failed', err);
+    return false;
+  }
+}
+
 async function showIntervention(
   tabId: number,
   payload: {
@@ -144,33 +300,117 @@ async function showIntervention(
     autoDismissMs: number;
   },
 ) {
-  // 1) Prefer already-injected content script.
-  const response = await sendTabMessage(tabId, {
-    type: MESSAGE_TYPES.SHOW_INTERVENTION,
-    payload,
+  return showPageModal(tabId, MESSAGE_TYPES.SHOW_INTERVENTION, payload, {
+    continueType: MESSAGE_TYPES.INTERVENTION_CONTINUE,
+    goBackType: MESSAGE_TYPES.INTERVENTION_GO_BACK,
+    snoozeType: MESSAGE_TYPES.INTERVENTION_SNOOZE,
+    dismissType: MESSAGE_TYPES.INTERVENTION_DISMISS,
   });
-  if (response) return true;
+}
 
-  // 2) Fallback: inject a self-contained modal (works on tabs opened before install).
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: selfContainedShowIntervention,
-      args: [
-        {
-          ...payload,
-          continueType: MESSAGE_TYPES.INTERVENTION_CONTINUE,
-          goBackType: MESSAGE_TYPES.INTERVENTION_GO_BACK,
-          snoozeType: MESSAGE_TYPES.INTERVENTION_SNOOZE,
-          dismissType: MESSAGE_TYPES.INTERVENTION_DISMISS,
-        },
-      ],
+async function showDistractionOptIn(tabId: number) {
+  const message =
+    'This site often pulls people off task. Add it as a distraction so MindDrift can help you not waste time here?';
+  speakAlert(message);
+  return showPageModal(
+    tabId,
+    MESSAGE_TYPES.SHOW_DISTRACTION_OPT_IN,
+    {
+      message,
+      continueLabel: 'Yes, add as distracting',
+      goBackLabel: 'No thanks',
+      snoozeLabel: '',
+      autoDismissMs: 0,
+      showSnooze: false,
+    },
+    {
+      continueType: MESSAGE_TYPES.DISTRACTION_ACCEPT,
+      goBackType: MESSAGE_TYPES.DISTRACTION_DECLINE,
+      snoozeType: MESSAGE_TYPES.DISTRACTION_DECLINE,
+      dismissType: MESSAGE_TYPES.INTERVENTION_DISMISS,
+    },
+  );
+}
+
+async function showDistractionIntentional(tabId: number) {
+  const message = "You've been here a while. Still intentional?";
+  speakAlert(message);
+  return showPageModal(
+    tabId,
+    MESSAGE_TYPES.SHOW_DISTRACTION_INTENTIONAL,
+    {
+      message,
+      continueLabel: 'Continue',
+      goBackLabel: 'Back',
+      snoozeLabel: 'Not working · 1 hour',
+      autoDismissMs: 0,
+      showSnooze: true,
+    },
+    {
+      continueType: MESSAGE_TYPES.DISTRACTION_CONTINUE,
+      goBackType: MESSAGE_TYPES.DISTRACTION_CLOSE_TAB,
+      snoozeType: MESSAGE_TYPES.DISTRACTION_SNOOZE,
+      dismissType: MESSAGE_TYPES.INTERVENTION_DISMISS,
+    },
+  );
+}
+
+async function onDistractionAlarm() {
+  const dwell = await getDistractionDwell();
+  if (!dwell) {
+    console.warn('[MindDrift] distraction alarm fired but no dwell state');
+    return;
+  }
+
+  const tab = await getTab(dwell.tabId);
+  if (!tab?.active || !tab.url) {
+    console.warn('[MindDrift] distraction alarm: tab not active', dwell);
+    return;
+  }
+
+  const domain = normalizeDomain(tab.url);
+  if (domain !== dwell.domain) {
+    console.warn('[MindDrift] distraction alarm: domain mismatch', {
+      expected: dwell.domain,
+      actual: domain,
     });
-    console.log('[MindDrift] injected intervention via scripting');
-    return true;
-  } catch (err) {
-    console.warn('[MindDrift] scripting inject failed', err);
-    return false;
+    return;
+  }
+
+  const [promptStatus, snoozedUntil] = await Promise.all([
+    storageGet<Record<string, DistractionPromptStatus>>(
+      STORAGE_KEYS.DISTRACTION_PROMPT_STATUS,
+      {},
+    ),
+    storageGet<number>(STORAGE_KEYS.DISTRACTION_SNOOZED_UNTIL, 0),
+  ]);
+  const now = Date.now();
+  const dwellMs = now - dwell.startedAt;
+
+  if (dwell.mode === 'opt-in' && shouldOfferOptIn(domain, promptStatus)) {
+    if (dwellMs < DISTRACTION_OPT_IN_MS) {
+      await scheduleDistractionAlarm(now + (DISTRACTION_OPT_IN_MS - dwellMs));
+      return;
+    }
+    if (!isInjectableUrl(tab.url)) return;
+    console.log('[MindDrift] showing distraction opt-in', domain);
+    await showDistractionOptIn(dwell.tabId);
+    return;
+  }
+
+  if (
+    dwell.mode === 'intentional' &&
+    shouldRunIntentionalCheck(domain, promptStatus, snoozedUntil, now)
+  ) {
+    if (dwellMs < DISTRACTION_INTENTIONAL_MS) {
+      await scheduleDistractionAlarm(
+        now + (DISTRACTION_INTENTIONAL_MS - dwellMs),
+      );
+      return;
+    }
+    if (!isInjectableUrl(tab.url)) return;
+    console.log('[MindDrift] showing distraction intentional', domain);
+    await showDistractionIntentional(dwell.tabId);
   }
 }
 
@@ -180,20 +420,31 @@ async function handleTabActivated(tabId: number) {
   const tab = await getTab(tabId);
   if (!tab) return;
 
-  const [classifications, rules, lastAlertAt, pausedUntil] = await Promise.all([
-    storageGet<Record<string, DomainClassification>>(
-      STORAGE_KEYS.DOMAIN_CLASSIFICATIONS,
-      {},
-    ),
-    resolvePersonaRules(),
-    storageGet<number>(STORAGE_KEYS.LAST_ALERT_AT, 0),
-    storageGet<number>(STORAGE_KEYS.ALERTS_PAUSED_UNTIL, 0),
-  ]);
+  await syncDistractionDwell(tabId, tab.url ?? '');
+
+  const [classifications, rules, lastAlertAt, pausedUntil, promptStatus] =
+    await Promise.all([
+      storageGet<Record<string, DomainClassification>>(
+        STORAGE_KEYS.DOMAIN_CLASSIFICATIONS,
+        {},
+      ),
+      resolvePersonaRules(),
+      storageGet<number>(STORAGE_KEYS.LAST_ALERT_AT, 0),
+      storageGet<number>(STORAGE_KEYS.ALERTS_PAUSED_UNTIL, 0),
+      storageGet<Record<string, DistractionPromptStatus>>(
+        STORAGE_KEYS.DISTRACTION_PROMPT_STATUS,
+        {},
+      ),
+    ]);
 
   const workspaceCluster = await resolveWorkspaceCluster(rules);
 
   const now = Date.now();
   const paused = now < pausedUntil;
+  const suppressFocusBreak = shouldSuppressFocusBreakForDomain(
+    tab.url ?? '',
+    promptStatus,
+  );
 
   const { switched, risk, alert, state } = engine.handleActivation({
     at: now,
@@ -218,17 +469,18 @@ async function handleTabActivated(tabId: number) {
       behaviour: risk.behaviourScore,
       multiplier: risk.domainMultiplier,
       final: risk.finalScore,
-      alert: risk.shouldAlert && !paused,
+      alert: risk.shouldAlert && !paused && !suppressFocusBreak,
       paused,
+      suppressFocusBreak,
       cooldownLeftMs: Math.max(0, rules.alertCooldownMs - (now - lastAlertAt)),
     });
   }
 
-  if (paused || !alert) return;
+  if (paused || suppressFocusBreak || !alert) return;
 
   // Always fire noticeable system cues first (sound / tray / voice).
   const notified = await notifyFocusBreak(alert.message);
-  speakFocusBreak(alert.message);
+  speakAlert(alert.message);
 
   if (!isInjectableUrl(tab.url)) {
     console.warn('[MindDrift] alert scored but page is not injectable', tab.url);
@@ -261,7 +513,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void handleTabActivated(tabId);
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== DISTRACTION_ALARM) return;
+  void onDistractionAlarm();
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.INTERVENTION_GO_BACK) {
     clearFocusBreakNotification();
     const previousTabId = engine.getPreviousTabId();
@@ -286,6 +543,112 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   ) {
     clearFocusBreakNotification();
     sendResponse({ ok: true });
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.DISTRACTION_ACCEPT) {
+    void (async () => {
+      const dwell = await getDistractionDwell();
+      const domain = dwell?.domain;
+      if (!domain) {
+        sendResponse({ ok: false });
+        return;
+      }
+      const [promptStatus, classifications] = await Promise.all([
+        storageGet<Record<string, DistractionPromptStatus>>(
+          STORAGE_KEYS.DISTRACTION_PROMPT_STATUS,
+          {},
+        ),
+        storageGet<Record<string, DomainClassification>>(
+          STORAGE_KEYS.DOMAIN_CLASSIFICATIONS,
+          {},
+        ),
+      ]);
+      const next = acceptDistractionDomain(domain, promptStatus, classifications);
+      if (!next) {
+        sendResponse({ ok: false });
+        return;
+      }
+      await Promise.all([
+        storageSet(STORAGE_KEYS.DISTRACTION_PROMPT_STATUS, next.promptStatus),
+        storageSet(STORAGE_KEYS.DOMAIN_CLASSIFICATIONS, next.classifications),
+      ]);
+      const tabId = dwell?.tabId ?? sender.tab?.id;
+      if (tabId != null) {
+        const now = Date.now();
+        await setDistractionDwell({
+          tabId,
+          domain: next.domain,
+          startedAt: now,
+          mode: 'intentional',
+        });
+        await scheduleDistractionAlarm(now + DISTRACTION_INTENTIONAL_MS);
+      }
+      console.log('[MindDrift] distraction accepted', next.domain);
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.DISTRACTION_DECLINE) {
+    void (async () => {
+      const dwell = await getDistractionDwell();
+      const domain = dwell?.domain;
+      if (!domain) {
+        sendResponse({ ok: false });
+        return;
+      }
+      const promptStatus = await storageGet<Record<string, DistractionPromptStatus>>(
+        STORAGE_KEYS.DISTRACTION_PROMPT_STATUS,
+        {},
+      );
+      const next = declineDistractionDomain(domain, promptStatus);
+      if (!next) {
+        sendResponse({ ok: false });
+        return;
+      }
+      await storageSet(STORAGE_KEYS.DISTRACTION_PROMPT_STATUS, next.promptStatus);
+      await setDistractionDwell(null);
+      await clearDistractionAlarm();
+      console.log('[MindDrift] distraction declined', next.domain);
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.DISTRACTION_CONTINUE) {
+    void (async () => {
+      await restartIntentionalDwell();
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.DISTRACTION_CLOSE_TAB) {
+    void (async () => {
+      const dwell = await getDistractionDwell();
+      const tabId = dwell?.tabId ?? sender.tab?.id;
+      await setDistractionDwell(null);
+      await clearDistractionAlarm();
+      if (tabId != null) {
+        await closeTab(tabId);
+      }
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.DISTRACTION_SNOOZE) {
+    void (async () => {
+      await storageSet(
+        STORAGE_KEYS.DISTRACTION_SNOOZED_UNTIL,
+        Date.now() + ALERT_PAUSE_MS,
+      );
+      await setDistractionDwell(null);
+      await clearDistractionAlarm();
+      console.log('[MindDrift] distraction checks snoozed for 1 hour');
+      sendResponse({ ok: true });
+    })();
     return true;
   }
 
