@@ -4,7 +4,7 @@ import type { PersonaId } from '@/types/persona';
 export type { PersonaId };
 
 type PersonaScreenProps = {
-  onContinue: () => void;
+  onContinue: (personaId: PersonaId) => void;
 };
 
 const PERSONAS: {
@@ -242,7 +242,7 @@ export function PersonaScreen({ onContinue }: PersonaScreenProps) {
         <button
           type="button"
           className="inline-flex w-full cursor-pointer items-center justify-center rounded-md bg-md-accent px-4 py-2.5 text-sm font-semibold text-md-fg-on-accent transition-colors hover:bg-md-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-md-accent"
-          onClick={onContinue}
+          onClick={() => onContinue(selected)}
         >
           Confirm and continue
         </button>

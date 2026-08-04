@@ -78,6 +78,7 @@ Tab / window events
 }
 ```
 
-Tune thresholds in `src/constants/` with research evidence.
+Tune thresholds in `src/constants/personas/` with research evidence.
+See the comparison matrix: [`PERSONA_THRESHOLDS.md`](PERSONA_THRESHOLDS.md).
 
 Agent conventions: see [`AGENTS.md`](../AGENTS.md).
