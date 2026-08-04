@@ -1,19 +1,5 @@
 import type { PersonaRules } from '@/types/personaRules';
 
-/**
- * Deep Reader — high sensitivity (students, writers, long-form readers).
- *
- * Metric                    | Rule
- * ------------------------- | -----
- * Rolling time window       | 180 seconds
- * Switch limit              | 3 tab switches
- * Short dwell               | Less than 30 seconds
- * Ping-pong limit           | 2 bounces
- * Alert cooldown            | 6 minutes
- * Focus-session suggestion  | After 3 minutes on one tab
- * Distracting-site nudge    | After 8 minutes
- * Workspace cluster         | Off (single tab = the workspace)
- */
 export const DEEP_READER_RULES = {
   rollingWindowMs: 180_000,
   switchLimit: 3,

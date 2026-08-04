@@ -29,10 +29,24 @@ export const STORAGE_KEYS = {
   ALERTS_PAUSED_UNTIL: 'alertsPausedUntil',
   /** Workspace cluster domains (Rapid Researcher). */
   WORKSPACE_CLUSTER: 'workspaceCluster',
+  /** Per-domain opt-in answers for suggested distractions (Feature 3). */
+  DISTRACTION_PROMPT_STATUS: 'distractionPromptStatus',
+  /** Timestamp until which Engine B (intentional checks) is paused. */
+  DISTRACTION_SNOOZED_UNTIL: 'distractionSnoozedUntil',
+  /** In-flight distraction dwell (session; survives SW sleep). */
+  DISTRACTION_DWELL: 'distractionDwell',
 } as const;
 
 /** Pause duration when user chooses “Not working”. */
 export const ALERT_PAUSE_MS = 60 * 60_000;
+
+/** Continuous dwell on a suggested candidate before the opt-in modal. */
+export const DISTRACTION_OPT_IN_MS = 30_000;
+
+/** Continuous dwell on an accepted distraction before the intentional check. */
+export const DISTRACTION_INTENTIONAL_MS = 15 * 60_000;
+
+export type DistractionPromptStatus = 'accepted' | 'declined';
 
 /**
  * Legacy flat thresholds — mirror Standard Worker until callers use
@@ -49,14 +63,21 @@ export const THRESHOLDS = {
   DISTRACTING_DWELL_WARN_MS: STANDARD_WORKER_RULES.distractingSiteNudgeMs,
 } as const;
 
-export const DEFAULT_DISTRACTING_DOMAINS = [
+/** Suggested distraction candidates — not distracting until the user accepts. */
+export const SUGGESTED_DISTRACTION_DOMAINS = [
   'instagram.com',
   'facebook.com',
   'twitter.com',
   'x.com',
   'tiktok.com',
   'reddit.com',
+  'youtube.com',
+  'linkedin.com',
+  'pinterest.com',
 ] as const;
+
+/** @deprecated Prefer SUGGESTED_DISTRACTION_DOMAINS — candidates are not auto-distracting. */
+export const DEFAULT_DISTRACTING_DOMAINS = SUGGESTED_DISTRACTION_DOMAINS;
 
 export const MESSAGE_TYPES = {
   GET_STATE: 'GET_STATE',
@@ -68,6 +89,13 @@ export const MESSAGE_TYPES = {
   INTERVENTION_GO_BACK: 'INTERVENTION_GO_BACK',
   INTERVENTION_DISMISS: 'INTERVENTION_DISMISS',
   INTERVENTION_SNOOZE: 'INTERVENTION_SNOOZE',
+  SHOW_DISTRACTION_OPT_IN: 'SHOW_DISTRACTION_OPT_IN',
+  SHOW_DISTRACTION_INTENTIONAL: 'SHOW_DISTRACTION_INTENTIONAL',
+  DISTRACTION_ACCEPT: 'DISTRACTION_ACCEPT',
+  DISTRACTION_DECLINE: 'DISTRACTION_DECLINE',
+  DISTRACTION_CONTINUE: 'DISTRACTION_CONTINUE',
+  DISTRACTION_CLOSE_TAB: 'DISTRACTION_CLOSE_TAB',
+  DISTRACTION_SNOOZE: 'DISTRACTION_SNOOZE',
 } as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES];

@@ -16,6 +16,9 @@ import type { PersonaRules } from '@/types/personaRules';
  *
  * In-cluster switches (e.g. GitHub ↔ Stack Overflow) never score as distraction.
  */
+
+
+// TODO : We need to give the user access to add the websites in workspace cluster
 export const RAPID_RESEARCHER_RULES = {
   rollingWindowMs: 90_000,
   switchLimit: 10,

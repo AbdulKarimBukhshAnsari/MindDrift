@@ -24,6 +24,15 @@ export async function activateTab(tabId: number): Promise<boolean> {
   }
 }
 
+export async function closeTab(tabId: number): Promise<boolean> {
+  try {
+    await chrome.tabs.remove(tabId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isInjectableUrl(url: string | undefined): boolean {
   if (!url) return false;
   return url.startsWith('http://') || url.startsWith('https://');

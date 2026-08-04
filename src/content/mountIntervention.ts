@@ -3,7 +3,10 @@ export type InterventionDomPayload = {
   continueLabel: string;
   goBackLabel: string;
   snoozeLabel: string;
+  /** 0 or negative = sticky (no auto-dismiss). */
   autoDismissMs: number;
+  /** Default true. Set false for opt-in Yes/No. */
+  showSnooze?: boolean;
 };
 
 type InterventionHandlers = {
@@ -42,7 +45,7 @@ const STYLES = `
   }
   .md-card {
     pointer-events: auto;
-    width: min(30rem, calc(100vw - 2.5rem));
+    width: min(42rem, calc(100vw - 2.5rem));
     box-sizing: border-box;
     border-radius: 14px;
     border: 1px solid rgba(103, 111, 157, 0.45);
@@ -209,6 +212,9 @@ export function mountInterventionDom(
   if (continueBtn) continueBtn.textContent = payload.continueLabel;
   if (backBtn) backBtn.textContent = payload.goBackLabel;
   if (snoozeBtn) snoozeBtn.textContent = payload.snoozeLabel;
+  if (payload.showSnooze === false && snoozeBtn) {
+    snoozeBtn.style.display = 'none';
+  }
 
   shadow.append(style, root);
 
@@ -216,14 +222,11 @@ export function mountInterventionDom(
   document.documentElement.style.overflow = 'hidden';
 
   playChime();
-  try {
-    navigator.vibrate?.([60, 40, 60]);
-  } catch {
-    // ignore
-  }
+
+  let timer: number | undefined;
 
   const cleanup = () => {
-    window.clearTimeout(timer);
+    if (timer !== undefined) window.clearTimeout(timer);
     document.documentElement.style.overflow = prevOverflow;
     host.remove();
   };
@@ -241,10 +244,12 @@ export function mountInterventionDom(
     handlers.onSnooze();
   });
 
-  const timer = window.setTimeout(() => {
-    cleanup();
-    handlers.onDismiss();
-  }, payload.autoDismissMs);
+  if (payload.autoDismissMs > 0) {
+    timer = window.setTimeout(() => {
+      cleanup();
+      handlers.onDismiss();
+    }, payload.autoDismissMs);
+  }
 
   backBtn?.focus();
   return cleanup;
