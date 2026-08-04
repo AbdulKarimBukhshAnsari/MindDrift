@@ -7,20 +7,24 @@ Platform: Chrome Extension (Manifest V3) · Local-first
 
 ## In scope
 
+- [x] **Feature 0 — Persona initialization** (popup onboarding)
 - [ ] **Feature 1 — Real-time focus break detection**
   - Track tab switch timestamps, dwell time, revisits, switch frequency
-  - Rules: ≥5 switches / 120s · short visits &lt;20s · ping-pong ≥3
-  - Message: "You're switching too fast. Focus slipping?" → Continue | Go back
-  - Cooldown 3 min · non-intrusive · auto-dismiss
+  - Persona rule sets: Deep Reader / Standard Worker / Rapid Researcher
+    (see [`docs/PERSONA_THRESHOLDS.md`](PERSONA_THRESHOLDS.md))
+  - Persona-aware intervention copy + cooldown
+  - Non-intrusive modal · auto-dismiss · optional 1h pause
 - [ ] **Feature 2 — Smart focus session suggestion**
-  - Trigger after ~5–7 min stable dwell
+  - Trigger after persona dwell threshold
   - "You're in focus. Start a 25-min session?" → Start | Ignore
-  - Interrupt on tab switch during session
+  - Interrupt on disqualifying tab switch during session
 - [ ] **Feature 3 — Custom distraction control**
   - Default distracting domains + user mark yes/no
-  - Warn after 15+ min on distracting domain
+  - Workspace clusters (Rapid Researcher on by default)
+  - Warn after persona distracting-dwell threshold
 - [ ] **Feature 4 — Daily brutal insight**
   - 1–2 lines only (no graphs/dashboards)
+  - Persona-toned copy
   - Switches, avg interval, longest streak, distracting time
 
 ## Explicit non-goals (MVP)

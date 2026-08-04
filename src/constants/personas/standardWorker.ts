@@ -26,6 +26,11 @@ export const STANDARD_WORKER_RULES = {
   alertCooldownMs: 3 * 60_000,
   focusSessionSuggestMs: 7 * 60_000,
   distractingSiteNudgeMs: 15 * 60_000,
+  workspaceCluster: {
+    enabled: false,
+    countOutsideClusterOnly: false,
+    defaultDomains: [],
+  },
   risk: {
     behaviour: {
       // At 5 switches: 70 pts — enough that ×1.0 distracting alerts; with

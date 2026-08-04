@@ -2,6 +2,10 @@ import { STANDARD_WORKER_RULES } from '@/constants/personas/standardWorker';
 import type { DomainKind } from '@/types/domain';
 import type { DomainRiskKey, PersonaRules } from '@/types/personaRules';
 import type { SwitchEvent, VisitEvent } from '@/types/tracking';
+import {
+  isDomainInCluster,
+  isOutsideClusterSwitch,
+} from '@/lib/workspaceCluster';
 
 export type BehaviourCounts = {
   switchCount: number;
@@ -29,6 +33,25 @@ function inWindow(at: number, now: number, windowMs: number): boolean {
   return at >= now - windowMs && at <= now;
 }
 
+/** Filter events for Rapid Researcher: drop pure in-cluster switches / dwells. */
+export function filterEventsForPersona(
+  switches: SwitchEvent[],
+  visits: VisitEvent[],
+  rules: PersonaRules,
+  workspaceCluster: readonly string[],
+): { switches: SwitchEvent[]; visits: VisitEvent[] } {
+  if (!rules.workspaceCluster.countOutsideClusterOnly || workspaceCluster.length === 0) {
+    return { switches, visits };
+  }
+
+  return {
+    switches: switches.filter((s) =>
+      isOutsideClusterSwitch(s.fromDomain, s.toDomain, workspaceCluster),
+    ),
+    visits: visits.filter((v) => !isDomainInCluster(v.domain, workspaceCluster)),
+  };
+}
+
 /** Tab switches whose timestamps fall in the rolling window ending at `now`. */
 export function countSwitchesInWindow(
   switches: SwitchEvent[],
@@ -40,7 +63,6 @@ export function countSwitchesInWindow(
 
 /**
  * Ping-pong bounce: returning to the other of two tabs (A→B→A = 1 bounce).
- * Only counts while the alternating pair stays the same two tab ids.
  */
 export function countPingPongBounces(
   switches: SwitchEvent[],
@@ -57,7 +79,6 @@ export function countPingPongBounces(
   for (let i = 1; i < recent.length; i++) {
     const prev = recent[i - 1];
     const cur = recent[i];
-    // Bounce when we return to the tab we left before the previous switch.
     if (cur.toTabId === prev.fromTabId && cur.fromTabId === prev.toTabId) {
       bounces += 1;
     }
@@ -120,7 +141,6 @@ export function computeBehaviourScore(
   const { behaviour, rapidFullExtraSwitches } = rules.risk;
   let score = 0;
 
-  // Rapid switching: at limit → rapidSwitchPoints; full 100 after +rapidFullExtraSwitches.
   if (counts.switchCount >= rules.switchLimit) {
     const base = behaviour.rapidSwitchPoints;
     const toFull = Math.max(0, 100 - base);
@@ -136,7 +156,6 @@ export function computeBehaviourScore(
     score += behaviour.shortDwellPoints;
   }
 
-  // Classic A↔B ping-pong OR thrashing across 3+ tabs with enough switches.
   const thrashing =
     counts.distinctTabCount >= 3 && counts.switchCount >= rules.switchLimit;
   if (counts.pingPongCount >= rules.pingPongLimit || thrashing) {
@@ -153,28 +172,37 @@ export function evaluateFocusBreakRisk(input: {
   fromKind: DomainKind;
   toKind: DomainKind;
   rules?: PersonaRules;
+  workspaceCluster?: readonly string[];
 }): FocusBreakRiskResult {
   const rules = input.rules ?? DEFAULT_RULES;
   const { rollingWindowMs, shortDwellMs, risk } = rules;
+  const cluster = input.workspaceCluster ?? rules.workspaceCluster.defaultDomains;
+
+  const filtered = filterEventsForPersona(
+    input.switches,
+    input.visits,
+    rules,
+    cluster,
+  );
 
   const switchCount = countSwitchesInWindow(
-    input.switches,
+    filtered.switches,
     input.now,
     rollingWindowMs,
   );
   const shortDwellCount = countShortDwells(
-    input.visits,
+    filtered.visits,
     input.now,
     rollingWindowMs,
     shortDwellMs,
   );
   const pingPongCount = countPingPongBounces(
-    input.switches,
+    filtered.switches,
     input.now,
     rollingWindowMs,
   );
   const distinctTabCount = countDistinctTabsInWindow(
-    input.switches,
+    filtered.switches,
     input.now,
     rollingWindowMs,
   );
@@ -206,7 +234,7 @@ export function evaluateFocusBreakRisk(input: {
   };
 }
 
-/** Drop events older than the rolling window (plus a small buffer). */
+/** Drop events older than the rolling window. */
 export function pruneTrackingEvents<T extends { at?: number; endedAt?: number }>(
   events: T[],
   now: number,

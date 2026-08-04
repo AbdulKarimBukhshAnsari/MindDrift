@@ -5,6 +5,8 @@ export type { DomainKind } from '@/types/domain';
 export {
   getPersonaRules,
   PERSONA_RULES,
+  DEEP_READER_RULES,
+  RAPID_RESEARCHER_RULES,
   STANDARD_WORKER_RULES,
 } from './personas';
 
@@ -25,6 +27,8 @@ export const STORAGE_KEYS = {
   TRACKING_STATE: 'trackingState',
   /** Timestamp until which focus-break alerts are paused. */
   ALERTS_PAUSED_UNTIL: 'alertsPausedUntil',
+  /** Workspace cluster domains (Rapid Researcher). */
+  WORKSPACE_CLUSTER: 'workspaceCluster',
 } as const;
 
 /** Pause duration when user chooses “Not working”. */

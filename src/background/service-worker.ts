@@ -15,6 +15,7 @@ import {
   STORAGE_KEYS,
   type DomainClassification,
 } from '@/constants';
+import { RAPID_RESEARCHER_RULES } from '@/constants/personas/rapidResearcher';
 import { sendTabMessage } from '@/chrome/messaging';
 import {
   sessionGet,
@@ -85,13 +86,30 @@ async function seedDefaults() {
     STORAGE_KEYS.DOMAIN_CLASSIFICATIONS,
     null,
   );
-  if (existing) return;
-
-  const seed: Record<string, DomainClassification> = {};
-  for (const domain of DEFAULT_DISTRACTING_DOMAINS) {
-    seed[domain] = 'distracting';
+  if (!existing) {
+    const seed: Record<string, DomainClassification> = {};
+    for (const domain of DEFAULT_DISTRACTING_DOMAINS) {
+      seed[domain] = 'distracting';
+    }
+    await storageSet(STORAGE_KEYS.DOMAIN_CLASSIFICATIONS, seed);
   }
-  await storageSet(STORAGE_KEYS.DOMAIN_CLASSIFICATIONS, seed);
+
+  const cluster = await storageGet<string[] | null>(STORAGE_KEYS.WORKSPACE_CLUSTER, null);
+  if (!cluster) {
+    await storageSet(
+      STORAGE_KEYS.WORKSPACE_CLUSTER,
+      [...RAPID_RESEARCHER_RULES.workspaceCluster.defaultDomains],
+    );
+  }
+}
+
+async function resolveWorkspaceCluster(rules: Awaited<ReturnType<typeof resolvePersonaRules>>) {
+  if (!rules.workspaceCluster.enabled) return [] as string[];
+  const stored = await storageGet<string[]>(
+    STORAGE_KEYS.WORKSPACE_CLUSTER,
+    [...rules.workspaceCluster.defaultDomains],
+  );
+  return stored.length > 0 ? stored : [...rules.workspaceCluster.defaultDomains];
 }
 
 async function ensureHydrated() {
@@ -172,6 +190,8 @@ async function handleTabActivated(tabId: number) {
     storageGet<number>(STORAGE_KEYS.ALERTS_PAUSED_UNTIL, 0),
   ]);
 
+  const workspaceCluster = await resolveWorkspaceCluster(rules);
+
   const now = Date.now();
   const paused = now < pausedUntil;
 
@@ -183,6 +203,7 @@ async function handleTabActivated(tabId: number) {
     rules,
     // While paused, treat as always-in-cooldown so no alert object is produced.
     lastAlertAt: paused ? now : lastAlertAt,
+    workspaceCluster,
   });
 
   await persistTrackingState(state);

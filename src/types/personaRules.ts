@@ -58,6 +58,17 @@ export type PersonaRules = {
   focusSessionSuggestMs: number;
   /** Dwell on a distracting domain before nudge. */
   distractingSiteNudgeMs: number;
+  /**
+   * Workspace Cluster — Rapid Researcher treats in-cluster switches as productive.
+   * Deep Reader / Standard Worker keep this off.
+   */
+  workspaceCluster: {
+    enabled: boolean;
+    /** When true, only switches that leave / stay outside the cluster score. */
+    countOutsideClusterOnly: boolean;
+    /** Starter domains seeded into storage for this persona. */
+    defaultDomains: readonly string[];
+  };
   risk: PersonaRiskConfig;
   intervention: PersonaInterventionCopy;
 };

@@ -34,6 +34,7 @@ export type FocusBreakEngine = {
     classifications: Record<string, DomainClassification>;
     rules: PersonaRules;
     lastAlertAt: number;
+    workspaceCluster?: readonly string[];
   }) => ActivationResult;
   hydrate: (state: TrackingState) => void;
   getPreviousTabId: () => number | null;
@@ -55,7 +56,15 @@ export function createFocusBreakEngine(
     reset: () => {
       state = createEmptyTrackingState();
     },
-    handleActivation({ at, tabId, url, classifications, rules, lastAlertAt }) {
+    handleActivation({
+      at,
+      tabId,
+      url,
+      classifications,
+      rules,
+      lastAlertAt,
+      workspaceCluster,
+    }) {
       const domain = normalizeDomain(url);
       const { state: next, switchEvent } = applyTabActivation(state, {
         at,
@@ -78,6 +87,8 @@ export function createFocusBreakEngine(
         fromKind,
         toKind,
         rules,
+        workspaceCluster:
+          workspaceCluster ?? rules.workspaceCluster.defaultDomains,
       });
 
       if (at - lastAlertAt < rules.alertCooldownMs) {
