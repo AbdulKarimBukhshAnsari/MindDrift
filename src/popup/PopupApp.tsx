@@ -3,6 +3,7 @@ import { WelcomeScreen } from '@/components/screens/WelcomeScreen';
 import { PersonaScreen } from '@/components/screens/PersonaScreen';
 import { STORAGE_KEYS } from '@/constants';
 import { storageGet, storageSet } from '@/chrome/storage';
+import type { PersonaId } from '@/types/persona';
 
 type PopupView = 'loading' | 'welcome' | 'persona' | 'home';
 
@@ -27,7 +28,8 @@ export function PopupApp() {
     };
   }, []);
 
-  async function finishOnboarding() {
+  async function finishOnboarding(personaId: PersonaId) {
+    await storageSet(STORAGE_KEYS.ACTIVE_PERSONA, personaId);
     await storageSet(STORAGE_KEYS.ONBOARDING_COMPLETE, true);
     setView('home');
   }
@@ -41,7 +43,7 @@ export function PopupApp() {
   }
 
   if (view === 'persona') {
-    return <PersonaScreen onContinue={() => void finishOnboarding()} />;
+    return <PersonaScreen onContinue={(id) => void finishOnboarding(id)} />;
   }
 
   return (

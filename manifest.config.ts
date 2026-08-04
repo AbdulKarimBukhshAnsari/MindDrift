@@ -30,5 +30,13 @@ export default defineManifest({
     page: 'src/options/index.html',
     open_in_tab: true,
   },
-  permissions: ['tabs', 'storage', 'alarms', 'notifications'],
+  permissions: ['tabs', 'storage', 'alarms', 'notifications', 'scripting', 'tts'],
+  host_permissions: ['http://*/*', 'https://*/*'],
+  content_scripts: [
+    {
+      matches: ['http://*/*', 'https://*/*'],
+      js: ['src/content/content.ts'],
+      run_at: 'document_idle',
+    },
+  ],
 });

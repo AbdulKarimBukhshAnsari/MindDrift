@@ -1,0 +1,22 @@
+/**
+ * Content-script styles — theme tokens + utilities only.
+ * Do NOT import global.css (its `body` rules would restyle host pages).
+ */
+@import 'tailwindcss';
+@import './theme.css';
+
+@keyframes md-rise {
+  from {
+    opacity: 0;
+    transform: translate(-8px, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+#minddrift-intervention-host {
+  all: initial;
+  font-family: var(--font-sans);
+}
