@@ -56,4 +56,5 @@ import { WelcomeScreen } from '@/components/screens/WelcomeScreen';
 
 - Product checklist: [`docs/MVP.md`](docs/MVP.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Persona thresholds: [`docs/PERSONA_THRESHOLDS.md`](docs/PERSONA_THRESHOLDS.md)
 - Structure design: [`docs/superpowers/specs/2026-08-02-scalable-src-structure-design.md`](docs/superpowers/specs/2026-08-02-scalable-src-structure-design.md)
