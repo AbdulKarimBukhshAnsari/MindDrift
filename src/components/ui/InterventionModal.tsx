@@ -1,3 +1,5 @@
+import { BrandMark } from '@/components/ui/BrandMark';
+
 type InterventionModalProps = {
   message: string;
   continueLabel: string;
@@ -38,31 +40,7 @@ export function InterventionModal({
           className="pointer-events-auto w-[min(42rem,calc(100vw-2.5rem))] animate-[md-rise_240ms_ease-out] rounded-lg border border-md-border-subtle bg-md-bg p-6 text-md-fg shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
         >
           <div className="mb-5 flex items-start gap-3.5">
-            <span
-              className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-md bg-md-accent text-md-fg-on-accent"
-              aria-hidden="true"
-            >
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-                <path
-                  d="M4 8.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M4 12.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M4 16.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
+            <BrandMark size="md" className="mt-0.5" />
             <div className="min-w-0">
               <p className="m-0 text-xs font-semibold tracking-wide text-md-accent uppercase">
                 MindDrift

@@ -1,3 +1,5 @@
+import { BrandMark } from '@/components/ui/BrandMark';
+
 type WelcomeScreenProps = {
   onStart: () => void;
 };
@@ -10,31 +12,7 @@ export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   return (
     <main className="box-border flex h-full w-full flex-col overflow-hidden bg-md-bg p-pad text-md-fg">
       <header className="flex shrink-0 items-center gap-2.5">
-        <span
-          className="grid size-8 shrink-0 place-items-center rounded-md bg-md-accent text-md-fg-on-accent"
-          aria-hidden="true"
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-            <path
-              d="M4 8.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <path
-              d="M4 12.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <path
-              d="M4 16.5c2.5-2 5-2 7.5 0s5 2 7.5 0"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
+        <BrandMark size="sm" />
         <span className="text-base font-semibold tracking-tight">MindDrift</span>
       </header>
 
