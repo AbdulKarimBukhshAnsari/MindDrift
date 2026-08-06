@@ -24,4 +24,4 @@ import { WelcomeScreen } from '@/components/screens/WelcomeScreen';
 
 - Use existing Tailwind theme tokens (`md-bg`, `md-accent`, `p-pad`, …) from `src/styles`
 - Prefer functional components; extract hooks to `src/hooks` when reusable across screens
-- Popup UIs should fit the fixed popup height without unnecessary scroll when designed that way
+- Popup shell size, scroll policy, and scrollbar: follow `.cursor/rules/popup-shell.mdc` (480×600, no page scroll, `.md-scroll` only on unbounded lists)
