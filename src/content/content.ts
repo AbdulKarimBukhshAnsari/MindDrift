@@ -2,9 +2,12 @@
 
 import { MESSAGE_TYPES } from '@/constants';
 import type { InterventionPayload } from '@/chrome/messaging';
+import { initFocusTimerOverlay } from '@/content/focusTimerOverlay';
 import { mountInterventionDom } from '@/content/mountIntervention';
 
 let cleanup: (() => void) | null = null;
+
+initFocusTimerOverlay();
 
 function showIntervention(payload: InterventionPayload) {
   cleanup?.();

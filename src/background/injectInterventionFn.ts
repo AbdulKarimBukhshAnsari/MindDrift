@@ -31,7 +31,7 @@ export function selfContainedShowIntervention(payload: {
     .md-wrap{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:20px;box-sizing:border-box;pointer-events:none}
     .md-card{pointer-events:auto;width:min(42rem,calc(100vw - 2.5rem));box-sizing:border-box;border-radius:14px;border:1px solid rgba(103,111,157,.45);background:#051424;color:#f1f5f9;padding:24px;box-shadow:0 16px 48px rgba(0,0,0,.55)}
     .md-row{display:flex;gap:14px;margin-bottom:18px}
-    .md-icon{flex-shrink:0;width:42px;height:42px;display:grid;place-items:center;border-radius:10px;background:#f9b17a;color:#051424;font-weight:700}
+    .md-icon{flex-shrink:0;width:42px;height:42px;border-radius:10px;object-fit:cover;display:block}
     .md-brand{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#f9b17a}
     .md-msg{margin:8px 0 0;font-size:18px;font-weight:600;line-height:1.35}
     .md-actions{display:flex;flex-direction:column;gap:10px}
@@ -49,7 +49,7 @@ export function selfContainedShowIntervention(payload: {
     <div class="md-wrap">
       <div class="md-card" role="dialog" aria-modal="true">
         <div class="md-row">
-          <span class="md-icon">MD</span>
+          <img class="md-icon" src="${chrome.runtime.getURL('public/icons/logo.png')}" alt="" width="42" height="42" />
           <div>
             <p class="md-brand">MindDrift</p>
             <p class="md-msg"></p>

@@ -39,4 +39,10 @@ export default defineManifest({
       run_at: 'document_idle',
     },
   ],
+  web_accessible_resources: [
+    {
+      resources: ['public/icons/logo.png'],
+      matches: ['http://*/*', 'https://*/*'],
+    },
+  ],
 });
