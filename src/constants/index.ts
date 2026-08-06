@@ -9,6 +9,7 @@ export {
   RAPID_RESEARCHER_RULES,
   STANDARD_WORKER_RULES,
 } from './personas';
+export { ICON_PATHS, iconUrl } from './icons';
 
 /** Stored user marks for Feature 3 (unknown is implied when absent). */
 export type DomainClassification = 'distracting' | 'productive';
@@ -29,6 +30,8 @@ export const STORAGE_KEYS = {
   ALERTS_PAUSED_UNTIL: 'alertsPausedUntil',
   /** Workspace cluster domains (Rapid Researcher). */
   WORKSPACE_CLUSTER: 'workspaceCluster',
+  /** Domains allowed during an active focus session. */
+  FOCUS_ALLOWED_DOMAINS: 'focusAllowedDomains',
   /** Per-domain opt-in answers for suggested distractions (Feature 3). */
   DISTRACTION_PROMPT_STATUS: 'distractionPromptStatus',
   /** Timestamp until which Engine B (intentional checks) is paused. */
@@ -59,6 +62,9 @@ export const THRESHOLDS = {
   PING_PONG_COUNT: STANDARD_WORKER_RULES.pingPongLimit,
   FOCUS_SUGGEST_MS: STANDARD_WORKER_RULES.focusSessionSuggestMs,
   FOCUS_SESSION_MS: 25 * 60_000,
+  /** Hard cap for focus timer (+5 steps included). */
+  FOCUS_SESSION_MAX_MS: 60 * 60_000,
+  FOCUS_SESSION_STEP_MS: 5 * 60_000,
   ALERT_COOLDOWN_MS: STANDARD_WORKER_RULES.alertCooldownMs,
   DISTRACTING_DWELL_WARN_MS: STANDARD_WORKER_RULES.distractingSiteNudgeMs,
 } as const;
@@ -83,6 +89,8 @@ export const MESSAGE_TYPES = {
   GET_STATE: 'GET_STATE',
   START_FOCUS_SESSION: 'START_FOCUS_SESSION',
   END_FOCUS_SESSION: 'END_FOCUS_SESSION',
+  /** User chose Back on off-cluster modal — close that tab. */
+  FOCUS_ALLOWLIST_CLOSE_TAB: 'FOCUS_ALLOWLIST_CLOSE_TAB',
   MARK_DOMAIN: 'MARK_DOMAIN',
   SHOW_INTERVENTION: 'SHOW_INTERVENTION',
   INTERVENTION_CONTINUE: 'INTERVENTION_CONTINUE',

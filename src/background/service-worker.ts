@@ -12,8 +12,11 @@ import {
   DISTRACTION_INTENTIONAL_MS,
   DISTRACTION_OPT_IN_MS,
   getPersonaRules,
+  ICON_PATHS,
+  iconUrl,
   MESSAGE_TYPES,
   STORAGE_KEYS,
+  THRESHOLDS,
   type DomainClassification,
   type DistractionPromptStatus,
 } from '@/constants';
@@ -25,8 +28,9 @@ import {
   storageGet,
   storageSet,
 } from '@/chrome/storage';
-import { activateTab, closeTab, getTab, isInjectableUrl } from '@/chrome/tabs';
+import { activateTab, closeTab, getTab, isInjectableUrl, navigateTab, queryHttpTabs } from '@/chrome/tabs';
 import { selfContainedShowIntervention } from '@/background/injectInterventionFn';
+import { selfContainedFocusTimer } from '@/background/injectFocusTimerFn';
 import {
   acceptDistractionDomain,
   declineDistractionDomain,
@@ -36,7 +40,16 @@ import {
 } from '@/lib/distractionControl';
 import { normalizeDomain } from '@/lib/domain';
 import { createFocusBreakEngine } from '@/lib/focusBreakEngine';
+import { isFocusDomainAllowed, withPinnedFocusDomains } from '@/lib/focusAllowlist';
+import {
+  completeFocusSession,
+  createDefaultFocusSession,
+  getRemainingMs,
+  startFocusSession,
+  type FocusSessionLimits,
+} from '@/lib/focusSession';
 import { createEmptyTrackingState } from '@/lib/trackingState';
+import type { FocusSession } from '@/types/focusSession';
 import type { PersonaId } from '@/types/persona';
 import type { TrackingState } from '@/types/tracking';
 
@@ -44,6 +57,14 @@ const engine = createFocusBreakEngine();
 let hydrated = false;
 const FOCUS_BREAK_NOTIFICATION_ID = 'minddrift-focus-break';
 const DISTRACTION_ALARM = 'minddrift-distraction-dwell';
+const FOCUS_SESSION_ALARM = 'minddrift-focus-session';
+const FOCUS_BADGE_ALARM = 'minddrift-focus-badge';
+
+const FOCUS_LIMITS: FocusSessionLimits = {
+  defaultMs: THRESHOLDS.FOCUS_SESSION_MS,
+  maxMs: THRESHOLDS.FOCUS_SESSION_MAX_MS,
+  stepMs: THRESHOLDS.FOCUS_SESSION_STEP_MS,
+};
 
 type DistractionDwell = {
   tabId: number;
@@ -53,6 +74,8 @@ type DistractionDwell = {
 };
 
 let distractionDwell: DistractionDwell | null = null;
+/** Debounce hard-blocks so goBack / redirect don't loop on the same navigation. */
+const focusBlockCooldownUntil = new Map<number, number>();
 
 async function setDistractionDwell(dwell: DistractionDwell | null) {
   distractionDwell = dwell;
@@ -73,7 +96,7 @@ async function notifyFocusBreak(message: string) {
     await chrome.notifications.clear(FOCUS_BREAK_NOTIFICATION_ID);
     await chrome.notifications.create(FOCUS_BREAK_NOTIFICATION_ID, {
       type: 'basic',
-      iconUrl: chrome.runtime.getURL('public/icons/icon-128.png'),
+      iconUrl: iconUrl(ICON_PATHS.icon128),
       title: 'MindDrift — Focus slipping',
       message,
       priority: 2,
@@ -171,6 +194,89 @@ async function clearDistractionAlarm() {
 
 async function scheduleDistractionAlarm(whenMs: number) {
   await chrome.alarms.create(DISTRACTION_ALARM, { when: whenMs });
+}
+
+async function clearFocusSessionAlarm() {
+  await chrome.alarms.clear(FOCUS_SESSION_ALARM);
+}
+
+async function syncFocusBadge(session: FocusSession | null) {
+  try {
+    if (!session || (session.status !== 'running' && session.status !== 'paused')) {
+      await chrome.action.setBadgeText({ text: '' });
+      await chrome.alarms.clear(FOCUS_BADGE_ALARM);
+      return;
+    }
+    const ms = getRemainingMs(session);
+    const mins = Math.max(1, Math.ceil(ms / 60_000));
+    await chrome.action.setBadgeBackgroundColor({ color: '#f9b17a' });
+    await chrome.action.setBadgeText({
+      text: session.status === 'paused' ? '|' : `${mins}m`,
+    });
+    if (session.status === 'running') {
+      await chrome.alarms.create(FOCUS_BADGE_ALARM, {
+        periodInMinutes: 1,
+      });
+    } else {
+      await chrome.alarms.clear(FOCUS_BADGE_ALARM);
+    }
+  } catch (err) {
+    console.warn('[MindDrift] focus badge sync failed', err);
+  }
+}
+
+async function broadcastFocusTimer(session: FocusSession) {
+  const tabs = await queryHttpTabs();
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id == null || !isInjectableUrl(tab.url)) return;
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: selfContainedFocusTimer,
+          args: [
+            {
+              status: session.status,
+              endsAt: session.endsAt,
+              remainingMs: session.remainingMs,
+            },
+          ],
+        });
+      } catch {
+        // Restricted pages / discarded tabs — ignore.
+      }
+    }),
+  );
+}
+
+async function syncFocusSessionAlarm(session: FocusSession | null) {
+  await clearFocusSessionAlarm();
+  void syncFocusBadge(session);
+  if (!session || session.status !== 'running' || session.endsAt == null) return;
+  if (session.endsAt <= Date.now()) {
+    await storageSet(
+      STORAGE_KEYS.FOCUS_SESSION,
+      completeFocusSession(session, FOCUS_LIMITS),
+    );
+    return;
+  }
+  await chrome.alarms.create(FOCUS_SESSION_ALARM, { when: session.endsAt });
+  void broadcastFocusTimer(session);
+}
+
+async function onFocusSessionAlarm() {
+  const session = await storageGet<FocusSession | null>(STORAGE_KEYS.FOCUS_SESSION, null);
+  if (!session) return;
+  if (getRemainingMs(session) > 0 && session.status === 'running') {
+    // Alarm fired early or endsAt was extended — reschedule.
+    await syncFocusSessionAlarm(session);
+    return;
+  }
+  await storageSet(
+    STORAGE_KEYS.FOCUS_SESSION,
+    completeFocusSession(session, FOCUS_LIMITS),
+  );
+  await clearFocusSessionAlarm();
 }
 
 async function syncDistractionDwell(tabId: number, url: string) {
@@ -414,11 +520,166 @@ async function onDistractionAlarm() {
   }
 }
 
+async function closeOffClusterTabs(allowlist: readonly string[]): Promise<number> {
+  const effective = withPinnedFocusDomains(allowlist);
+  const tabs = await queryHttpTabs();
+  const toClose: number[] = [];
+  for (const tab of tabs) {
+    if (tab.id == null || !tab.url) continue;
+    const domain = normalizeDomain(tab.url);
+    if (!domain) continue;
+    if (!isFocusDomainAllowed(domain, effective)) {
+      toClose.push(tab.id);
+    }
+  }
+  if (toClose.length === 0) return 0;
+
+  // Keep at least one tab so Chrome doesn't feel empty.
+  const remaining = tabs.length - toClose.length;
+  if (remaining <= 0 && effective[0]) {
+    const keepId = toClose.pop();
+    if (keepId != null) {
+      await navigateTab(keepId, `https://${effective[0]}`);
+    }
+  }
+  if (toClose.length > 0) {
+    try {
+      await chrome.tabs.remove(toClose);
+    } catch (err) {
+      console.warn('[MindDrift] failed closing off-cluster tabs', err);
+    }
+  }
+  return toClose.length + (remaining <= 0 ? 1 : 0);
+}
+
+async function showFocusClusterBlock(tabId: number, domain: string) {
+  const message = `${domain} is not in your work cluster. Focus is slipping — choose Back to close this tab, or end the session.`;
+  speakAlert("Focus is slipping. This site isn't in your work cluster.");
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: selfContainedShowIntervention,
+      args: [
+        {
+          message,
+          continueLabel: 'End Focus session',
+          goBackLabel: 'Back',
+          snoozeLabel: '',
+          autoDismissMs: 0,
+          showSnooze: false,
+          continueType: MESSAGE_TYPES.END_FOCUS_SESSION,
+          goBackType: MESSAGE_TYPES.FOCUS_ALLOWLIST_CLOSE_TAB,
+          snoozeType: MESSAGE_TYPES.FOCUS_ALLOWLIST_CLOSE_TAB,
+          dismissType: MESSAGE_TYPES.FOCUS_ALLOWLIST_CLOSE_TAB,
+        },
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.warn('[MindDrift] focus cluster modal inject failed', err);
+    return false;
+  }
+}
+
+async function enforceFocusAllowlist(tabId: number, url: string): Promise<boolean> {
+  const session = await storageGet<FocusSession | null>(STORAGE_KEYS.FOCUS_SESSION, null);
+  if (!session || session.status !== 'running') return false;
+  if (getRemainingMs(session) <= 0) return false;
+  if (!isInjectableUrl(url)) return false;
+
+  const domain = normalizeDomain(url);
+  if (!domain) return false;
+
+  const allowlist = await storageGet<string[]>(STORAGE_KEYS.FOCUS_ALLOWED_DOMAINS, []);
+  const effective = withPinnedFocusDomains(allowlist);
+  if (isFocusDomainAllowed(domain, effective)) return false;
+
+  const now = Date.now();
+  const coolUntil = focusBlockCooldownUntil.get(tabId) ?? 0;
+  if (now < coolUntil) return true;
+  focusBlockCooldownUntil.set(tabId, now + 2500);
+
+  console.log('[MindDrift] focus allowlist block', { domain, allowlist: effective, tabId });
+
+  // Site may stay open; sticky modal requires Back (close tab) or End Focus.
+  await showFocusClusterBlock(tabId, domain);
+
+  try {
+    await chrome.notifications.create(`minddrift-focus-block-${tabId}`, {
+      type: 'basic',
+      iconUrl: iconUrl(ICON_PATHS.icon128),
+      title: 'MindDrift — Focus slipping',
+      message: `${domain} is not in your work cluster.`,
+      priority: 2,
+    });
+  } catch (err) {
+    console.warn('[MindDrift] focus block notification failed', err);
+  }
+
+  return true;
+}
+
+async function startFocusSessionFromPopup(): Promise<{
+  ok: boolean;
+  closedTabs: number;
+  reason?: string;
+}> {
+  const stored = await storageGet<string[]>(STORAGE_KEYS.FOCUS_ALLOWED_DOMAINS, []);
+  const allowlist = withPinnedFocusDomains(stored);
+  await storageSet(STORAGE_KEYS.FOCUS_ALLOWED_DOMAINS, allowlist);
+
+  if (allowlist.length < 3) {
+    return { ok: false, closedTabs: 0, reason: 'allowlist' };
+  }
+
+  const closedTabs = await closeOffClusterTabs(allowlist);
+  const current = await storageGet(
+    STORAGE_KEYS.FOCUS_SESSION,
+    createDefaultFocusSession(FOCUS_LIMITS),
+  );
+
+  if (current.status === 'running' && getRemainingMs(current) > 0) {
+    console.log('[MindDrift] focus session already running', { closedTabs });
+    return { ok: true, closedTabs };
+  }
+
+  const started = startFocusSession(
+    {
+      ...current,
+      status: current.status === 'paused' ? 'paused' : 'idle',
+      endsAt: null,
+      remainingMs:
+        getRemainingMs(current) > 0 ? getRemainingMs(current) : FOCUS_LIMITS.defaultMs,
+    },
+    Date.now(),
+  );
+  await storageSet(STORAGE_KEYS.FOCUS_SESSION, started);
+  console.log('[MindDrift] focus session started', { closedTabs, allowlist });
+  return { ok: true, closedTabs };
+}
+
+async function endFocusSessionFromPopup(): Promise<{ ok: boolean }> {
+  const current = await storageGet(
+    STORAGE_KEYS.FOCUS_SESSION,
+    createDefaultFocusSession(FOCUS_LIMITS),
+  );
+  await storageSet(
+    STORAGE_KEYS.FOCUS_SESSION,
+    completeFocusSession(current, FOCUS_LIMITS),
+  );
+  await clearFocusSessionAlarm();
+  console.log('[MindDrift] focus session ended');
+  return { ok: true };
+}
+
 async function handleTabActivated(tabId: number) {
   await ensureHydrated();
 
   const tab = await getTab(tabId);
   if (!tab) return;
+
+  const blocked = await enforceFocusAllowlist(tabId, tab.url ?? '');
+  if (blocked) return;
 
   await syncDistractionDwell(tabId, tab.url ?? '');
 
@@ -509,16 +770,101 @@ chrome.tabs.onActivated.addListener((info) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !tab.active) return;
-  void handleTabActivated(tabId);
+  // Catch navigations as soon as the URL changes (not only on complete / active).
+  if (changeInfo.url) {
+    void enforceFocusAllowlist(tabId, changeInfo.url);
+  }
+  if (changeInfo.status === 'complete' && tab.url) {
+    void enforceFocusAllowlist(tabId, tab.url);
+  }
+  if (changeInfo.status === 'complete' && tab.active) {
+    void handleTabActivated(tabId);
+  }
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== DISTRACTION_ALARM) return;
-  void onDistractionAlarm();
+  if (alarm.name === DISTRACTION_ALARM) {
+    void onDistractionAlarm();
+    return;
+  }
+  if (alarm.name === FOCUS_SESSION_ALARM) {
+    void onFocusSessionAlarm();
+    return;
+  }
+  if (alarm.name === FOCUS_BADGE_ALARM) {
+    void (async () => {
+      const session = await storageGet<FocusSession | null>(
+        STORAGE_KEYS.FOCUS_SESSION,
+        null,
+      );
+      await syncFocusBadge(session);
+    })();
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const change = changes[STORAGE_KEYS.FOCUS_SESSION];
+  if (!change) return;
+  const session = (change.newValue as FocusSession | null) ?? null;
+  void syncFocusSessionAlarm(session);
+  if (session && (session.status === 'running' || session.status === 'paused')) {
+    void broadcastFocusTimer(session);
+  } else {
+    void broadcastFocusTimer({
+      status: 'idle',
+      endsAt: null,
+      remainingMs: 0,
+      taskLabel: '',
+    });
+  }
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void (async () => {
+    const session = await storageGet<FocusSession | null>(STORAGE_KEYS.FOCUS_SESSION, null);
+    if (!session) {
+      await storageSet(
+        STORAGE_KEYS.FOCUS_SESSION,
+        createDefaultFocusSession(FOCUS_LIMITS),
+      );
+      return;
+    }
+    if (session.status === 'running' && getRemainingMs(session) <= 0) {
+      await storageSet(
+        STORAGE_KEYS.FOCUS_SESSION,
+        completeFocusSession(session, FOCUS_LIMITS),
+      );
+      return;
+    }
+    await syncFocusSessionAlarm(session);
+  })();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === MESSAGE_TYPES.START_FOCUS_SESSION) {
+    void startFocusSessionFromPopup().then(sendResponse);
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.END_FOCUS_SESSION) {
+    void endFocusSessionFromPopup().then(sendResponse);
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.FOCUS_ALLOWLIST_CLOSE_TAB) {
+    void (async () => {
+      const tabId = sender.tab?.id;
+      if (tabId == null) {
+        sendResponse({ ok: false });
+        return;
+      }
+      await closeTab(tabId);
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
   if (message?.type === MESSAGE_TYPES.INTERVENTION_GO_BACK) {
     clearFocusBreakNotification();
     const previousTabId = engine.getPreviousTabId();

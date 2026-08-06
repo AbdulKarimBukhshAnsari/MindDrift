@@ -1,3 +1,5 @@
+import { ICON_PATHS, iconUrl } from '@/constants';
+
 export type InterventionDomPayload = {
   message: string;
   continueLabel: string;
@@ -65,11 +67,9 @@ const STYLES = `
     width: 42px;
     height: 42px;
     margin-top: 2px;
-    display: grid;
-    place-items: center;
     border-radius: 10px;
-    background: #f9b17a;
-    color: #051424;
+    object-fit: cover;
+    display: block;
   }
   .md-brand {
     margin: 0;
@@ -181,13 +181,7 @@ export function mountInterventionDom(
     <div class="md-wrap">
       <div class="md-card" role="dialog" aria-modal="true" aria-label="Focus break">
         <div class="md-row">
-          <span class="md-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-              <path d="M4 8.5c2.5-2 5-2 7.5 0s5 2 7.5 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M4 12.5c2.5-2 5-2 7.5 0s5 2 7.5 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M4 16.5c2.5-2 5-2 7.5 0s5 2 7.5 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </span>
+          <img class="md-icon" src="${iconUrl(ICON_PATHS.logo)}" alt="" width="42" height="42" aria-hidden="true" />
           <div>
             <p class="md-brand">MindDrift</p>
             <p class="md-msg"></p>
