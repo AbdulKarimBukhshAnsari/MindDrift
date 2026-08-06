@@ -14,7 +14,7 @@
     font: inherit;
   }
 
-  /* Popup shell: lock size to Chrome max so the UI never scrolls */
+  /* Popup shell: fixed 480×600 — no page scroll; scroll only inside .md-scroll regions */
   html.md-popup,
   html.md-popup body,
   html.md-popup #root {
@@ -28,6 +28,30 @@
 
   html.md-popup body {
     background: var(--color-md-bg);
+  }
+
+  /* Quiet scrollbar — only on regions that opt in with .md-scroll */
+  .md-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-md-fg-muted) 35%, transparent) transparent;
+  }
+
+  .md-scroll::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .md-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .md-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-md-fg-muted) 35%, transparent);
+  }
+
+  .md-scroll::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-md-fg-muted) 55%, transparent);
   }
 }
 

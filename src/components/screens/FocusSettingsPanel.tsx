@@ -137,7 +137,7 @@ export function FocusSettingsPanel({ onBack }: FocusSettingsPanelProps) {
             : `${domains.length} allowed · ready for focus.`}
         </p>
 
-        <ul className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-0">
+        <ul className="md-scroll m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-0">
           {domains.map((domain) => {
             const pinned = isPinnedFocusDomain(domain);
             return (

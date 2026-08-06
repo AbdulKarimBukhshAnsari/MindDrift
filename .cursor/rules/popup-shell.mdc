@@ -1,0 +1,46 @@
+---
+description: Fixed popup shell size, scroll policy, and quiet custom scrollbar
+globs: src/popup/**/*.{ts,tsx,css,html},src/components/screens/**/*.{ts,tsx},src/components/ui/**/*.{ts,tsx},src/styles/**/*.css
+alwaysApply: false
+---
+
+# Popup shell
+
+Extension popup only (`html.md-popup`). Options page is out of scope.
+
+## Fixed size (all views)
+
+Lock size via theme tokens in `src/styles/theme.css` — never per-screen:
+
+| Token | Value | Meaning |
+| --- | --- | --- |
+| `--spacing-popup` | `30rem` (480px) | Width |
+| `--spacing-popup-h` | `37.5rem` (600px) | Height |
+| `--spacing-pad` | `1.25rem` | Default padding |
+
+```ts
+// ❌ BAD — screen-specific popup size
+<main className="h-[520px] w-[420px]">
+
+// ✅ GOOD — fill the locked shell
+<main className="box-border flex h-full w-full flex-col overflow-hidden …">
+```
+
+Loading, welcome, persona, and home/focus must share the same width and height.
+
+## Scroll
+
+- Root (`html.md-popup` / `body` / `#root`) stays `overflow: hidden` — no page scroll.
+- Brand header and bottom nav stay fixed; they must not scroll away.
+- Prefer fitting static screens in the frame. Do not add scroll to “make room.”
+- Scroll only unbounded lists (e.g. Focus Settings allowlist) with `overflow-y-auto` + `.md-scroll`.
+
+## Scrollbar (`.md-scroll`)
+
+Ultra-thin and quiet (~4px). Transparent track; soft muted thumb; slightly clearer on hover. Firefox: `scrollbar-width: thin` + matching `scrollbar-color`. Do not force a visible gutter unless layout jumps.
+
+## Anti-clutter
+
+After narrowing, fix clipping with spacing/typography only. Do not add cards, denser chrome, pill clusters, or fill space for its own sake.
+
+Spec: `docs/superpowers/specs/2026-08-07-popup-shell-design.md`
