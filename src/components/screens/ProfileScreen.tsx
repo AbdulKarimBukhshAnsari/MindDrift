@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '@/constants';
+import { applyFocusCluster, loadFocusClusters } from '@/chrome/focusClusters';
 import { storageGet, storageSet } from '@/chrome/storage';
+import { AddClusterPanel } from '@/components/screens/AddClusterPanel';
+import { DomainManagementPanel } from '@/components/screens/DomainManagementPanel';
 import { Toast } from '@/components/ui/Toast';
+import { effectiveFocusDomains } from '@/lib/focusClusters';
+import type { FocusCluster } from '@/types/focusCluster';
 import type { PersonaId } from '@/types/persona';
 
 const DEFAULT_PERSONA: PersonaId = 'standard-worker';
@@ -33,18 +38,6 @@ const PERSONAS: {
   },
 ];
 
-const CLUSTERS = [
-  { name: 'Development', sites: 12, tone: 'accent' as const },
-  { name: 'Learning', sites: 4, tone: 'muted' as const },
-];
-
-const PRODUCTIVE_DOMAINS = [
-  { host: 'github.com', label: 'Engineering Flow', icon: 'code' as const },
-  { host: 'notion.so', label: 'Knowledge Management', icon: 'doc' as const },
-];
-
-type DomainTab = 'productive' | 'distracting';
-
 function isPersonaId(value: string): value is PersonaId {
   return PERSONAS.some((persona) => persona.id === value);
 }
@@ -59,18 +52,32 @@ export function ProfileScreen() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [domainTab, setDomainTab] = useState<DomainTab>('productive');
+  const [clusters, setClusters] = useState<FocusCluster[]>([]);
+  const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
+  const [expandedClusterId, setExpandedClusterId] = useState<string | null>(null);
+  const [showAddCluster, setShowAddCluster] = useState(false);
 
   const dirty = draftPersonaId !== savedPersonaId;
+
+  async function refreshClusters() {
+    const loaded = await loadFocusClusters();
+    setClusters(loaded.clusters);
+    setActiveClusterId(loaded.activeId);
+  }
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const stored = await storageGet<string>(STORAGE_KEYS.ACTIVE_PERSONA, DEFAULT_PERSONA);
+      const [stored, loaded] = await Promise.all([
+        storageGet<string>(STORAGE_KEYS.ACTIVE_PERSONA, DEFAULT_PERSONA),
+        loadFocusClusters(),
+      ]);
       const id = isPersonaId(stored) ? stored : DEFAULT_PERSONA;
       if (!cancelled) {
         setSavedPersonaId(id);
         setDraftPersonaId(id);
+        setClusters(loaded.clusters);
+        setActiveClusterId(loaded.activeId);
         setReady(true);
       }
     })();
@@ -99,6 +106,28 @@ export function ProfileScreen() {
     }
   }
 
+  async function selectCluster(id: string) {
+    setExpandedClusterId((current) => (current === id ? null : id));
+    if (id === activeClusterId) return;
+    const applied = await applyFocusCluster(clusters, id);
+    if (applied) {
+      setActiveClusterId(applied.id);
+      setToastMessage(`Cluster active — ${applied.name}`);
+    }
+  }
+
+  if (showAddCluster) {
+    return (
+      <AddClusterPanel
+        onBack={() => setShowAddCluster(false)}
+        onSaved={(cluster) => {
+          void refreshClusters();
+          setToastMessage(`Cluster saved — ${cluster.name}`);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="relative box-border flex h-full min-h-0 w-full flex-col overflow-hidden px-pad pb-3 pt-1">
       <div className="md-scroll flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-0.5">
@@ -108,11 +137,21 @@ export function ProfileScreen() {
           aria-label="Persona selection"
         >
           <div className="pointer-events-none absolute -top-20 -right-20 size-56 rounded-full bg-md-accent/10 blur-3xl" />
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex items-center justify-between gap-3">
             <h3 className="m-0 text-lg font-semibold tracking-tight text-md-fg">
               Persona selection
             </h3>
-            <PsychologyIcon />
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                disabled={!ready || !dirty || saving}
+                onClick={() => void savePersona()}
+                className="cursor-pointer rounded-lg bg-md-accent px-3 py-1.5 text-xs font-bold text-md-fg-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <PsychologyIcon />
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3" role="radiogroup" aria-label="Focus persona">
             {PERSONAS.map((persona) => {
@@ -148,14 +187,6 @@ export function ProfileScreen() {
               );
             })}
           </div>
-          <button
-            type="button"
-            disabled={!ready || !dirty || saving}
-            onClick={() => void savePersona()}
-            className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-xl bg-md-accent px-4 py-3 text-sm font-bold text-md-fg-on-accent shadow-[0_8px_24px_color-mix(in_srgb,#f9b17a_28%,transparent)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-          >
-            {saving ? 'Saving…' : 'Save persona'}
-          </button>
         </section>
 
         {/* Clusters */}
@@ -166,126 +197,75 @@ export function ProfileScreen() {
           <h3 className="m-0 text-lg font-semibold tracking-tight text-md-fg">Clusters</h3>
           <p className="mt-2 mb-5 text-sm text-md-fg-muted">Manage your focus environments.</p>
           <div className="flex flex-col gap-3">
-            {CLUSTERS.map((cluster) => (
-              <div
-                key={cluster.name}
-                className="flex items-center justify-between rounded-xl border border-md-border-subtle bg-md-surface-raised px-3.5 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <span
+            {clusters.length === 0 ? (
+              <p className="m-0 rounded-xl border border-dashed border-md-border-subtle px-3 py-4 text-center text-sm text-md-fg-muted">
+                No clusters yet — create one for Focus sessions.
+              </p>
+            ) : (
+              clusters.map((cluster, index) => {
+                const selected = cluster.id === activeClusterId;
+                const expanded = cluster.id === expandedClusterId;
+                const sites = effectiveFocusDomains(cluster);
+                return (
+                  <div
+                    key={cluster.id}
                     className={[
-                      'size-3 rounded-full',
-                      cluster.tone === 'accent' ? 'bg-md-accent' : 'bg-md-fg-muted',
+                      'overflow-hidden rounded-xl border transition-colors',
+                      selected
+                        ? 'border-md-accent/50 bg-md-accent-soft'
+                        : 'border-md-border-subtle bg-md-surface-raised',
                     ].join(' ')}
-                  />
-                  <span className="text-sm font-medium text-md-fg">{cluster.name}</span>
-                </div>
-                <span className="text-xs font-semibold tracking-wide text-md-fg-muted">
-                  {cluster.sites} Sites
-                </span>
-              </div>
-            ))}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void selectCluster(cluster.id)}
+                      className="flex w-full cursor-pointer items-center justify-between px-3.5 py-3 text-left hover:opacity-95"
+                      aria-expanded={expanded}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={[
+                            'size-3 shrink-0 rounded-full',
+                            selected || index % 2 === 0 ? 'bg-md-accent' : 'bg-md-fg-muted',
+                          ].join(' ')}
+                        />
+                        <span className="truncate text-sm font-medium text-md-fg">
+                          {cluster.name}
+                        </span>
+                      </div>
+                      <span className="flex shrink-0 items-center gap-2 text-xs font-semibold tracking-wide text-md-fg-muted">
+                        {sites.length} Sites
+                        <ChevronIcon open={expanded} />
+                      </span>
+                    </button>
+                    {expanded ? (
+                      <ul className="m-0 list-none space-y-1.5 border-t border-md-border-subtle px-3.5 py-3 pl-9">
+                        {sites.map((domain) => (
+                          <li
+                            key={domain}
+                            className="truncate text-sm text-md-fg"
+                          >
+                            {domain}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
             <button
               type="button"
+              onClick={() => setShowAddCluster(true)}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-md-border-subtle py-3 text-sm font-semibold text-md-fg-muted transition-colors hover:border-md-accent/50 hover:text-md-accent"
             >
               <PlusIcon />
-              New Cluster
+              Add cluster
             </button>
           </div>
         </section>
 
-        {/* Domain Management */}
-        <section
-          className="shrink-0 rounded-3xl border border-md-border-subtle bg-md-surface/80 p-5"
-          aria-label="Domain Management"
-        >
-          <div className="mb-5 flex flex-col gap-4">
-            <div>
-              <h3 className="m-0 text-lg font-semibold tracking-tight text-md-fg">
-                Domain Management
-              </h3>
-              <p className="mt-1 mb-0 text-sm text-md-fg-muted">
-                Categorize incoming cognitive signals.
-              </p>
-            </div>
-            <div
-              className="flex rounded-xl bg-md-bg p-1"
-              role="tablist"
-              aria-label="Domain category"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={domainTab === 'productive'}
-                onClick={() => setDomainTab('productive')}
-                className={[
-                  'flex-1 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
-                  domainTab === 'productive'
-                    ? 'bg-md-surface-raised text-md-fg shadow-sm'
-                    : 'text-md-fg-muted hover:text-md-fg',
-                ].join(' ')}
-              >
-                Productive
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={domainTab === 'distracting'}
-                onClick={() => setDomainTab('distracting')}
-                className={[
-                  'flex-1 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
-                  domainTab === 'distracting'
-                    ? 'bg-md-surface-raised text-md-fg shadow-sm'
-                    : 'text-md-fg-muted hover:text-md-fg',
-                ].join(' ')}
-              >
-                Distracting
-              </button>
-            </div>
-          </div>
-
-          {domainTab === 'productive' ? (
-            <div className="flex flex-col gap-3" role="tabpanel">
-              {PRODUCTIVE_DOMAINS.map((domain) => (
-                <div
-                  key={domain.host}
-                  className="group flex items-center justify-between rounded-2xl bg-md-surface-raised px-4 py-3.5 transition-colors hover:bg-md-border/30"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <div className="grid size-10 place-items-center rounded-xl bg-md-accent-soft text-md-accent">
-                      <DomainGlyph type={domain.icon} />
-                    </div>
-                    <div>
-                      <p className="m-0 text-sm font-medium text-md-fg">{domain.host}</p>
-                      <p className="m-0 text-xs text-md-fg-muted">{domain.label}</p>
-                    </div>
-                  </div>
-                  <span className="text-md-fg-muted opacity-0 transition-opacity group-hover:opacity-100">
-                    <CloseIcon />
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div
-              className="relative flex min-h-48 flex-col items-center justify-center overflow-hidden rounded-2xl border border-md-border-subtle bg-md-surface-raised p-6 text-center"
-              role="tabpanel"
-            >
-              <BlockIcon />
-              <p className="mt-2 mb-0 text-sm font-bold text-md-fg">42 Domains Blocked</p>
-              <p className="mt-1 mb-0 text-xs text-md-fg-muted">
-                Social Media &amp; News feeds restricted during focus.
-              </p>
-              <button
-                type="button"
-                className="mt-4 cursor-pointer rounded-lg bg-[#93000a] px-4 py-2 text-xs font-bold text-[#ffdad6] transition-opacity hover:opacity-90"
-              >
-                Review List
-              </button>
-            </div>
-          )}
-        </section>
+        <DomainManagementPanel onToast={setToastMessage} />
 
         {/* Cognitive Insight */}
         <section
@@ -394,61 +374,31 @@ function PersonaGlyph({ type }: { type: 'diamond' | 'groups' | 'brush' }) {
   );
 }
 
-function DomainGlyph({ type }: { type: 'code' | 'doc' }) {
-  if (type === 'code') {
-    return (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-        <path
-          d="M8 8 4.5 12 8 16M16 8l3.5 4L16 16M13.5 6.5 10.5 17.5"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-      <path
-        d="M7 4h7l4 4v12H7V4Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-      <path d="M7 7l10 10M17 7 7 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BlockIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="36"
-      height="36"
-      fill="none"
-      className="text-[#ffb4ab]"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M7 7l10 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      aria-hidden="true"
+      className={open ? 'rotate-180 transition-transform' : 'transition-transform'}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -32,6 +32,10 @@ export const STORAGE_KEYS = {
   WORKSPACE_CLUSTER: 'workspaceCluster',
   /** Domains allowed during an active focus session. */
   FOCUS_ALLOWED_DOMAINS: 'focusAllowedDomains',
+  /** Named focus clusters (user-created work environments). */
+  FOCUS_CLUSTERS: 'focusClusters',
+  /** Selected focus cluster id applied to the allowlist. */
+  ACTIVE_FOCUS_CLUSTER_ID: 'activeFocusClusterId',
   /** Per-domain opt-in answers for suggested distractions (Feature 3). */
   DISTRACTION_PROMPT_STATUS: 'distractionPromptStatus',
   /** Timestamp until which Engine B (intentional checks) is paused. */

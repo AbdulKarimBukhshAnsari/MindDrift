@@ -1,3 +1,5 @@
+import { normalizeDomain } from '@/lib/domain';
+
 /**
  * Thin wrappers around chrome.tabs / chrome.windows used by the service worker.
  */
@@ -5,6 +7,14 @@
 export async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
+}
+
+/** Bare domain for the active tab, or '' if unavailable / non-http(s). */
+export async function getActiveTabDomain(): Promise<string> {
+  const tab = await getActiveTab();
+  const url = tab?.url;
+  if (!url || !isInjectableUrl(url)) return '';
+  return normalizeDomain(url);
 }
 
 export async function getTab(tabId: number): Promise<chrome.tabs.Tab | undefined> {
