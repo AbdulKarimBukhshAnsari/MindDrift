@@ -5,8 +5,8 @@
  */
 @theme {
   --color-md-bg: #051424;
-  --color-md-surface: #2d3250;
-  --color-md-surface-raised: #363b5c;
+  --color-md-surface: #172434;
+  --color-md-surface-raised: #283647;
   --color-md-border: #424769;
   --color-md-border-subtle: color-mix(in srgb, #676f9d 45%, transparent);
 
